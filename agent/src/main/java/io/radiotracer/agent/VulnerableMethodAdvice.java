@@ -3,8 +3,9 @@ package io.radiotracer.agent;
 import net.bytebuddy.asm.Advice;
 
 /**
- * ByteBuddy advice injected at the start of each watched method body.
- * Origin bindings supply the declaring type, method name, and JVM descriptor.
+ * ByteBuddy advice injected at the start of each watched method or constructor body.
+ * Origin bindings supply the declaring type, method name ({@code <init>} for constructors),
+ * and JVM descriptor.
  */
 public final class VulnerableMethodAdvice {
 
