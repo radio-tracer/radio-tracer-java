@@ -1,5 +1,6 @@
 package io.radiotracer.agent;
 
+import io.radiotracer.agent.fixture.CtorTarget;
 import io.radiotracer.agent.support.TestAccess;
 import net.bytebuddy.agent.ByteBuddyAgent;
 import org.junit.jupiter.api.AfterEach;
@@ -128,5 +129,77 @@ class ReachabilityAgentTest {
                 "com.Example", null, null, false, boom);
         TestAccess.invoke(verbose, "onError", onErrorParams,
                 "com.Example", null, null, true, boom);
+    }
+
+    @Test
+    void instrumentsAllConstructorsWhenWatchlistUsesInit(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("methods.json");
+        Files.writeString(methods, """
+                {
+                  "methods": [
+                    {
+                      "cve": "CVE-CTOR",
+                      "package": "test:fixture",
+                      "upgradeTo": "9.9",
+                      "className": "io.radiotracer.agent.fixture.CtorTarget",
+                      "methodName": "<init>",
+                      "source": "snyk",
+                      "confidence": "high"
+                    }
+                  ]
+                }
+                """);
+        Path report = dir.resolve("ctor-out.html");
+        Instrumentation inst = ByteBuddyAgent.install();
+        // Install agent before first load of CtorTarget so constructors are instrumented.
+        ReachabilityAgent.premain("methods=" + methods + ",report=" + report + ",verbose=true", inst);
+
+        // Direct calls so the IDE/static analysis see the constructors as used
+        // (reflection-only newInstance is often treated as dead code).
+        new CtorTarget();
+        new CtorTarget(42);
+        new CtorTarget("hi");
+
+        var results = io.radiotracer.agent.report.HitReporter.buildResults();
+        assertEquals(1, results.size());
+        assertEquals(io.radiotracer.agent.report.ReachabilityStatus.REACHABLE, results.getFirst().status());
+        // All three overloads counted under one watchlist entry (no descriptor).
+        assertEquals(3, results.getFirst().hitCount());
+
+        io.radiotracer.agent.report.HitReporter.writeFinalReport();
+        assertTrue(Files.isRegularFile(report));
+        String html = Files.readString(report);
+        assertTrue(html.contains("CVE-CTOR"));
+        assertTrue(html.contains("REACHABLE"));
+    }
+
+    @Test
+    void matcherForInitSelectsConstructorsOnly() throws Exception {
+        var init = new Watchlist.VulnerableMethod(
+                "C", "p", "1", "2",
+                "io.radiotracer.agent.fixture.CtorTarget",
+                Watchlist.CONSTRUCTOR_NAME, null, "s", "high");
+        var named = new Watchlist.VulnerableMethod(
+                "C", "p", "1", "2",
+                "io.radiotracer.agent.fixture.CtorTarget",
+                "toString", null, "s", "high");
+
+        var initMatcher = ReachabilityAgent.matcherFor(init);
+        var methodMatcher = ReachabilityAgent.matcherFor(named);
+
+        net.bytebuddy.description.type.TypeDescription type =
+                net.bytebuddy.pool.TypePool.Default.ofSystemLoader()
+                        .describe("io.radiotracer.agent.fixture.CtorTarget")
+                        .resolve();
+
+        long ctorMatches = type.getDeclaredMethods().stream()
+                .filter(initMatcher::matches)
+                .count();
+        long methodMatches = type.getDeclaredMethods().stream()
+                .filter(methodMatcher::matches)
+                .count();
+
+        assertEquals(3, ctorMatches);
+        assertEquals(0, methodMatches); // toString is inherited, not declared on CtorTarget
     }
 }

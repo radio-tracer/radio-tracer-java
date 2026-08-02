@@ -19,6 +19,9 @@ import java.util.stream.Collectors;
  */
 public final class Watchlist {
 
+    /** JVM internal name for constructors (Snyk {@code functionName}, etc.). */
+    public static final String CONSTRUCTOR_NAME = "<init>";
+
     private final List<VulnerableMethod> methods;
     private final Map<String, List<VulnerableMethod>> byClass;
 

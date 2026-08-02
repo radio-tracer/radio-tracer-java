@@ -101,21 +101,36 @@ public final class ReachabilityAgent {
 
                     ElementMatcher.Junction<MethodDescription> methodMatcher = ElementMatchers.none();
                     for (Watchlist.VulnerableMethod m : watchlist.methodsForClass(name)) {
-                        ElementMatcher.Junction<MethodDescription> one =
-                                ElementMatchers.named(m.methodName())
-                                        .and(ElementMatchers.isMethod())
-                                        .and(ElementMatchers.not(ElementMatchers.isAbstract()))
-                                        .and(ElementMatchers.not(ElementMatchers.isNative()));
-                        String desc = m.descriptor();
-                        if (desc != null) {
-                            one = one.and(ElementMatchers.hasDescriptor(desc));
-                        }
-                        methodMatcher = methodMatcher.or(one);
+                        methodMatcher = methodMatcher.or(matcherFor(m));
                     }
                     return builder.visit(Advice.to(VulnerableMethodAdvice.class).on(methodMatcher));
                 })
                 .with(new TransformErrorListener(verbose))
                 .installOn(inst);
+    }
+
+    /**
+     * Builds a ByteBuddy matcher for one watchlist entry.
+     * <p>
+     * {@code <init>} selects constructors ({@link ElementMatchers#isConstructor()}).
+     * Without a descriptor, <b>all</b> constructors of the class are watched (recall over
+     * precision — false positives preferred over missed hits).
+     */
+    static ElementMatcher.Junction<MethodDescription> matcherFor(Watchlist.VulnerableMethod m) {
+        ElementMatcher.Junction<MethodDescription> one;
+        if (Watchlist.CONSTRUCTOR_NAME.equals(m.methodName())) {
+            one = ElementMatchers.isConstructor();
+        } else {
+            one = ElementMatchers.named(m.methodName())
+                    .and(ElementMatchers.isMethod())
+                    .and(ElementMatchers.not(ElementMatchers.isAbstract()))
+                    .and(ElementMatchers.not(ElementMatchers.isNative()));
+        }
+        String desc = m.descriptor();
+        if (desc != null) {
+            one = one.and(ElementMatchers.hasDescriptor(desc));
+        }
+        return one;
     }
 
     private static String locationOf(ProtectionDomain pd) {
