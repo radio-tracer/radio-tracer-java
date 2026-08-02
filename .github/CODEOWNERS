@@ -1,0 +1,3 @@
+# Approvals that satisfy "require code owner review" must come from this team.
+# Add people to the org team: https://github.com/orgs/radio-tracer/teams/approvers
+* @radio-tracer/approvers
