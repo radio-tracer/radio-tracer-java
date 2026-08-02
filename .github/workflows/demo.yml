@@ -1,0 +1,39 @@
+name: Demo
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  run-demo:
+    name: Package & run demo with agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Build all modules
+        run: mvn -B -q package -DskipTests
+
+      - name: Run demo app under agent
+        run: |
+          java -javaagent:agent/target/radio-tracer-agent-0.1.0-SNAPSHOT.jar=\
+methods=examples/methods.json,report=$GITHUB_WORKSPACE/demo-report.html \
+            -cp "demo-app/target/demo-app-0.1.0-SNAPSHOT.jar:demo-app/target/deps/*" \
+            com.example.app.DemoApp
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-reachability-report
+          path: demo-report.html
+          if-no-files-found: warn

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & test (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["25"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Test (incl. 100% coverage gate)
+        run: mvn -B -q test
+
+      - name: Package agent
+        run: mvn -B -q -pl agent package -DskipTests
+
+      - name: Upload agent JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-tracer-agent-java${{ matrix.java }}
+          path: agent/target/radio-tracer-agent-*.jar
+          if-no-files-found: error
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report-java${{ matrix.java }}
+          path: agent/target/site/jacoco/
+          if-no-files-found: ignore
