@@ -20,12 +20,13 @@ Applied on `main`:
 |------|---------|
 | Required status check | `Build & test (Java 25)` (CI workflow) |
 | Require branch up to date before merge | yes (`strict`) |
-| Linear history | yes (no merge commits required; rebases/squash OK) |
+| Require a pull request before merging | **yes** (0 approvals — solo-friendly) |
+| Linear history | yes (squash/rebase OK) |
 | Force push | **blocked** |
 | Delete branch | **blocked** |
 | Conversation resolution | required before merge |
-| Enforce for admins | **off** (owner can still push directly in emergencies) |
-| Required PR reviews | **off** (solo-friendly; Dependabot can open PRs and you merge when CI is green) |
+| Enforce for admins | **on** (you cannot bypass; must use PR + green CI) |
+| Required approving reviews | **0** (raise to 1 when you have collaborators) |
 
 ### Org-level rulesets
 
