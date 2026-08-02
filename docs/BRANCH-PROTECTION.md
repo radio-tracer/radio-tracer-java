@@ -8,7 +8,7 @@ Configured via **repository ruleset** `main-protection` (not classic branch prot
 2. **At least 1 approving review**
 3. **Code owner review required** — approval must come from [@radio-tracer/approvers](https://github.com/orgs/radio-tracer/teams/approvers) (whitelist)
 4. **You cannot approve your own PR** (GitHub platform rule)
-5. **Status check** must pass: `Build & test (Java 25)`
+5. **Status check** must pass: `Build & test`
 6. Branch must be **up to date** with `main` before merge
 7. **No force-push** to `main`; **no deleting** `main`
 8. Review threads must be resolved

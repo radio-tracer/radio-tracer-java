@@ -18,7 +18,7 @@ Applied on `main`:
 
 | Rule | Setting |
 |------|---------|
-| Required status check | `Build & test (Java 25)` (CI workflow) |
+| Required status check | `Build & test` (CI workflow) |
 | Require branch up to date before merge | yes (`strict`) |
 | Require a pull request before merging | **yes** (0 approvals — solo-friendly) |
 | Linear history | yes (squash/rebase OK) |
@@ -46,6 +46,6 @@ git checkout -b feature/…
 # work, commit
 git push -u origin HEAD
 gh pr create
-# wait for CI (Build & test Java 25)
+# wait for CI (Build & test)
 gh pr merge --squash
 ```
