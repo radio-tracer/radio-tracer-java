@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "methods": [
+    {
+      "cve": "CVE-2023-DEMO-0001",
+      "package": "io.radiotracer:demo-lib",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "1.2.0",
+      "className": "com.example.vulnlib.DeserUtil",
+      "methodName": "deserialize",
+      "descriptor": "(Ljava/lang/String;)Ljava/lang/Object;",
+      "source": "mock-fix-commit",
+      "confidence": "high"
+    },
+    {
+      "cve": "CVE-2023-DEMO-0002",
+      "package": "io.radiotracer:demo-lib",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "1.3.1",
+      "className": "com.example.vulnlib.CryptoHelper",
+      "methodName": "weakDecrypt",
+      "source": "mock-advisory-listing",
+      "confidence": "medium"
+    },
+    {
+      "cve": "CVE-2023-DEMO-0003",
+      "package": "io.radiotracer:demo-lib",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "1.2.0",
+      "className": "com.example.vulnlib.CryptoHelper",
+      "methodName": "version",
+      "source": "mock-false-lead",
+      "confidence": "low"
+    },
+    {
+      "cve": "CVE-2023-DEMO-0004",
+      "package": "io.radiotracer:demo-lib",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "2.0.0",
+      "className": "com.example.vulnlib.DeserUtil",
+      "methodName": "legacyParse",
+      "descriptor": "([B)Ljava/lang/Object;",
+      "source": "mock-fix-commit",
+      "confidence": "high"
+    },
+    {
+      "cve": "CVE-2023-DEMO-0005",
+      "package": "io.radiotracer:demo-lib",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "1.4.0",
+      "className": "com.example.vulnlib.CryptoHelper",
+      "methodName": "legacyHash",
+      "source": "osv.dev",
+      "confidence": "medium"
+    }
+  ]
+}

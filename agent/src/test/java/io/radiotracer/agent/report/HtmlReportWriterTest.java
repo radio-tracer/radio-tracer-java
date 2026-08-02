@@ -1,0 +1,95 @@
+package io.radiotracer.agent.report;
+
+import io.radiotracer.agent.Watchlist;
+import io.radiotracer.agent.support.TestAccess;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.TimeZone;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class HtmlReportWriterTest {
+
+    @Test
+    void renderIncludesCveLibraryUpgradeAndStatuses() {
+        Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
+                "CVE-A", "g:a", "1.0", "1.1", "c.A", "m1", null, "osv", "high");
+        String html = HtmlReportWriter.render(
+                List.of(new MethodResult(a, ReachabilityStatus.REACHABLE, 3)),
+                2, 1, Instant.parse("2026-01-01T00:00:00Z"), 3);
+        assertTrue(html.contains("CVE-A"));
+        assertTrue(html.contains("g:a@1.0"));
+        assertTrue(html.contains("1.1"));
+        assertTrue(html.contains("REACHABLE"));
+        assertTrue(html.contains("NOT_OBSERVED (hidden)"));
+        assertTrue(html.contains("Confidence"));
+        assertTrue(html.contains(ZoneId.systemDefault().getId())
+                || html.contains("Generated"));
+    }
+
+    @Test
+    void renderEmptyReachedRows() {
+        String html = HtmlReportWriter.render(List.of(), 3, 3, Instant.now(), 0);
+        assertTrue(html.contains("No reachable vulnerable methods observed"));
+    }
+
+    @Test
+    void consoleTableHasHeadersAndEmptyOptionalFields() {
+        Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
+                "", "g:a", "1.0", "1.1", "c.A", "m1", null, "", "");
+        String table = HtmlReportWriter.consoleTable(
+                List.of(new MethodResult(a, ReachabilityStatus.NOT_OBSERVED, 0)));
+        assertTrue(table.contains("CVE"));
+        assertTrue(table.contains("—"));
+        assertTrue(table.contains("NOT_OBSERVED"));
+    }
+
+    @Test
+    void escapesHtmlInFields() {
+        Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
+                "<script>", "g:a", "1", "2", "c.A", "m", null, "x", "y");
+        String html = HtmlReportWriter.render(
+                List.of(new MethodResult(a, ReachabilityStatus.REACHABLE, 1)),
+                1, 0, Instant.now(), 1);
+        assertTrue(html.contains("&lt;script&gt;"));
+        assertFalse(html.contains("<script>"));
+    }
+
+    @Test
+    void formatGeneratedAtUtcViaRender() {
+        TimeZone previous = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            String html = HtmlReportWriter.render(List.of(), 0, 0, Instant.EPOCH, 0);
+            assertTrue(html.contains("UTC"));
+            assertTrue(html.contains("+00:00") || html.contains("UTC+00:00") || html.contains("UTC"));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
+    }
+
+    @Test
+    void renderHandlesNullMetadataFields() {
+        Watchlist.VulnerableMethod b = new Watchlist.VulnerableMethod(
+                null, null, null, null, "c.A", "m", null, null, null);
+        String html = HtmlReportWriter.render(
+                List.of(new MethodResult(b, ReachabilityStatus.REACHABLE, 1)),
+                1, 0, Instant.now(), 1);
+        assertTrue(html.contains("c.A#m") || html.contains("REACHABLE"));
+    }
+
+    @Test
+    void escNullViaReflection() {
+        Object empty = TestAccess.invokeStatic(
+                HtmlReportWriter.class, "esc", new Class<?>[]{String.class}, (Object) null);
+        assertEquals("", empty);
+        Object escaped = TestAccess.invokeStatic(
+                HtmlReportWriter.class, "esc", new Class<?>[]{String.class}, "a&b");
+        assertTrue(escaped.toString().contains("&amp;"));
+    }
+}

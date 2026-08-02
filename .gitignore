@@ -1,0 +1,52 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Build / coverage / logs
+*.class
+*.jar
+*.war
+*.ear
+*.log
+jacoco.exec
+*.lcov
+.coverage
+
+# Local / temp
+/tmp/
+*.tmp
+*.bak
+target-test-report*.html
+.radio-tracer/
+
+# Secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.*
+
+# OS
+Thumbs.db

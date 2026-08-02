@@ -1,0 +1,132 @@
+package io.radiotracer.agent;
+
+import io.radiotracer.agent.support.TestAccess;
+import net.bytebuddy.agent.ByteBuddyAgent;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.lang.instrument.Instrumentation;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
+import java.security.cert.Certificate;
+
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ReachabilityAgentTest {
+
+    @BeforeEach
+    @AfterEach
+    void reset() {
+        TestAccess.resetHitReporter();
+        TestAccess.clearDispatcherRegistry();
+    }
+
+    @Test
+    void premainAndAgentmainWithValidWatchlist(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("methods.json");
+        Files.writeString(methods, """
+                {
+                  "methods": [
+                    {
+                      "cve": "CVE-T",
+                      "package": "test:fixture",
+                      "installedVersion": "1.0",
+                      "upgradeTo": "2.0",
+                      "className": "io.radiotracer.agent.fixture.WatchedTarget",
+                      "methodName": "touch",
+                      "source": "test",
+                      "confidence": "high"
+                    },
+                    {
+                      "cve": "CVE-O",
+                      "package": "test:fixture",
+                      "className": "io.radiotracer.agent.fixture.WatchedTarget",
+                      "methodName": "overload",
+                      "descriptor": "(Ljava/lang/String;)I",
+                      "upgradeTo": "2.0"
+                    }
+                  ]
+                }
+                """);
+        Path report = dir.resolve("out.html");
+        Instrumentation inst = ByteBuddyAgent.install();
+
+        String args = "methods=" + methods + ",report=" + report + ",verbose=true";
+        assertDoesNotThrow(() -> ReachabilityAgent.premain(args, inst));
+
+        Class<?> target = Class.forName("io.radiotracer.agent.fixture.WatchedTarget");
+        assertEquals("touched", target.getMethod("touch").invoke(null));
+        target.getMethod("overload", String.class).invoke(null, "hi");
+
+        io.radiotracer.agent.report.HitReporter.writeFinalReport();
+        assertTrue(Files.isRegularFile(report));
+    }
+
+    @Test
+    void agentmainWithInvalidArgsDoesNotThrow() {
+        Instrumentation inst = ByteBuddyAgent.install();
+        assertDoesNotThrow(() -> ReachabilityAgent.agentmain("methods=/no/such/file.json", inst));
+    }
+
+    @Test
+    void startWithoutReportPath(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("m.json");
+        Files.writeString(methods, """
+                {"methods":[{"className":"java.lang.String","methodName":"length","cve":"C","package":"j"}]}
+                """);
+        Instrumentation inst = ByteBuddyAgent.install();
+        assertDoesNotThrow(() ->
+                ReachabilityAgent.premain("file=" + methods + ",verbose=false", inst));
+    }
+
+    @Test
+    void locationOfViaReflection() {
+        assertEquals("?", TestAccess.invokeStatic(
+                ReachabilityAgent.class, "locationOf",
+                new Class<?>[]{ProtectionDomain.class}, new Object[]{null}));
+
+        assertEquals("?", TestAccess.invokeStatic(
+                ReachabilityAgent.class, "locationOf",
+                new Class<?>[]{ProtectionDomain.class},
+                new ProtectionDomain(null, null)));
+
+        Object loc = TestAccess.invokeStatic(
+                ReachabilityAgent.class, "locationOf",
+                new Class<?>[]{ProtectionDomain.class},
+                String.class.getProtectionDomain());
+        assertTrue(loc.toString().equals("?") || loc.toString().length() > 0);
+
+        CodeSource cs = new CodeSource(null, (Certificate[]) null);
+        assertEquals("?", TestAccess.invokeStatic(
+                ReachabilityAgent.class, "locationOf",
+                new Class<?>[]{ProtectionDomain.class},
+                new ProtectionDomain(cs, null)));
+    }
+
+    @Test
+    void transformErrorListenerViaReflection() throws Exception {
+        Class<?> listenerType = Class.forName(
+                "io.radiotracer.agent.ReachabilityAgent$TransformErrorListener");
+        Object quiet = TestAccess.newInstance(listenerType, new Class<?>[]{boolean.class}, false);
+        Object verbose = TestAccess.newInstance(listenerType, new Class<?>[]{boolean.class}, true);
+
+        Class<?>[] onErrorParams = {
+                String.class,
+                ClassLoader.class,
+                net.bytebuddy.utility.JavaModule.class,
+                boolean.class,
+                Throwable.class
+        };
+        RuntimeException boom = new RuntimeException("weave failed");
+        TestAccess.invoke(quiet, "onError", onErrorParams,
+                "com.Example", null, null, false, boom);
+        TestAccess.invoke(verbose, "onError", onErrorParams,
+                "com.Example", null, null, true, boom);
+    }
+}

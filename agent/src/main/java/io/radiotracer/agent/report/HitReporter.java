@@ -1,0 +1,185 @@
+package io.radiotracer.agent.report;
+
+import io.radiotracer.agent.Watchlist;
+
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * Collects runtime hits for watched methods and writes the final HTML report
+ * (plus a console summary table) on shutdown.
+ */
+public final class HitReporter {
+
+    private static final AtomicLong TOTAL_HITS = new AtomicLong();
+    private static final ConcurrentHashMap<String, AtomicLong> COUNTS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> FIRST_SEEN = new ConcurrentHashMap<>();
+
+    private static volatile PrintStream out = System.err;
+    private static volatile Path reportPath;
+    private static volatile List<Watchlist.VulnerableMethod> watchlist = List.of();
+
+    private HitReporter() {}
+
+    public static void configure(Path report, List<Watchlist.VulnerableMethod> methods) {
+        out = System.err;
+        reportPath = report;
+        watchlist = methods == null ? List.of() : List.copyOf(methods);
+    }
+
+    public static void onMethodEnter(
+            String className,
+            String methodName,
+            String descriptor,
+            String cve,
+            String packageCoord
+    ) {
+        try {
+            String key = className + "#" + methodName + (descriptor == null ? "" : descriptor);
+            TOTAL_HITS.incrementAndGet();
+            COUNTS.computeIfAbsent(key, ignored -> new AtomicLong()).incrementAndGet();
+
+            // First hit only: print stack; further calls only increment counts.
+            if (FIRST_SEEN.putIfAbsent(key, System.currentTimeMillis()) != null) {
+                return;
+            }
+
+            String thread = Thread.currentThread().getName();
+            out.println("[REACHABLE] "
+                    + Instant.now()
+                    + " cve=" + empty(cve, "?")
+                    + " package=" + empty(packageCoord, "?")
+                    + " method=" + key
+                    + " thread=" + thread);
+            out.flush();
+
+            printCallerStack(out, Thread.currentThread().getStackTrace());
+            out.flush();
+        } catch (Throwable t) {
+            System.err.println("[radio-tracer] reporter error: " + t);
+        }
+    }
+
+    public static List<MethodResult> buildResults() {
+        Map<String, Long> counts = snapshotCounts();
+        return watchlist.stream()
+                .map(m -> {
+                    long hits = resolveHits(m, counts);
+                    ReachabilityStatus status =
+                            hits > 0 ? ReachabilityStatus.REACHABLE : ReachabilityStatus.NOT_OBSERVED;
+                    return new MethodResult(m, status, hits);
+                })
+                .toList();
+    }
+
+    private static Map<String, Long> snapshotCounts() {
+        ConcurrentHashMap<String, Long> snap = new ConcurrentHashMap<>();
+        COUNTS.forEach((k, v) -> snap.put(k, v.get()));
+        return snap;
+    }
+
+    private static long resolveHits(Watchlist.VulnerableMethod m, Map<String, Long> counts) {
+        String descriptor = m.descriptor();
+        if (descriptor != null) {
+            Long exact = counts.get(m.className() + "#" + m.methodName() + descriptor);
+            if (exact != null) {
+                return exact;
+            }
+        }
+        String prefix = m.className() + "#" + m.methodName();
+        long sum = 0;
+        boolean any = false;
+        for (Map.Entry<String, Long> e : counts.entrySet()) {
+            String key = e.getKey();
+            // Runtime keys are class#method or class#method + JVM descriptor (starts with '(').
+            if (key.equals(prefix) || key.startsWith(prefix + "(")) {
+                sum += e.getValue();
+                any = true;
+            }
+        }
+        return any ? sum : 0;
+    }
+
+    public static void writeFinalReport() {
+        try {
+            List<MethodResult> results = buildResults();
+            List<MethodResult> reached = results.stream()
+                    .filter(r -> r.status().isReached())
+                    .toList();
+            long total = TOTAL_HITS.get();
+            long reachable = reached.size();
+            long notObserved = results.size() - reachable;
+
+            out.println();
+            out.println("[radio-tracer] ===== Reachability summary =====");
+            out.println("[radio-tracer] watched=" + results.size()
+                    + " reachable=" + reachable
+                    + " not_observed=" + notObserved
+                    + " total_hits=" + total
+                    + " (table lists REACHABLE only)");
+            out.println();
+            if (reached.isEmpty()) {
+                out.println("[radio-tracer] (no reachable vulnerable methods observed)");
+            } else {
+                out.println(HtmlReportWriter.consoleTable(reached));
+            }
+            out.flush();
+
+            Path path = reportPath;
+            if (path != null) {
+                Path htmlPath = ensureHtmlPath(path);
+                String html = HtmlReportWriter.render(
+                        reached, results.size(), notObserved, Instant.now(), total);
+                Path parent = htmlPath.getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
+                Files.writeString(htmlPath, html, StandardCharsets.UTF_8);
+                out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath());
+                out.flush();
+            }
+        } catch (Throwable t) {
+            System.err.println("[radio-tracer] failed to write report: " + t);
+            t.printStackTrace(System.err);
+        }
+    }
+
+    private static Path ensureHtmlPath(Path path) {
+        String name = path.getFileName().toString();
+        String lower = name.toLowerCase();
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+            return path;
+        }
+        if (name.contains(".")) {
+            String base = name.substring(0, name.lastIndexOf('.'));
+            return path.resolveSibling(base + ".html");
+        }
+        return path.resolveSibling(name + ".html");
+    }
+
+    private static void printCallerStack(PrintStream out, StackTraceElement[] stack) {
+        int printed = 0;
+        for (int i = 0; i < stack.length && printed < 8; i++) {
+            StackTraceElement el = stack[i];
+            String cn = el.getClassName();
+            if (cn.startsWith("io.radiotracer.agent")
+                    || cn.startsWith("java.lang.Thread")
+                    || cn.startsWith("jdk.internal")) {
+                continue;
+            }
+            out.println("    at " + el);
+            printed++;
+        }
+    }
+
+    private static String empty(String s, String fallback) {
+        return s == null || s.isEmpty() ? fallback : s;
+    }
+}
