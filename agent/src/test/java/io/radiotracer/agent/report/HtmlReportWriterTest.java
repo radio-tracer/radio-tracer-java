@@ -73,6 +73,21 @@ class HtmlReportWriterTest {
         }
     }
 
+    /** Covers the non-Z offset branch (skipped on UTC CI runners by default). */
+    @Test
+    void formatGeneratedAtNonUtcOffsetViaRender() {
+        TimeZone previous = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"));
+            Instant winter = Instant.parse("2026-01-15T12:00:00Z"); // EST, UTC-5
+            String html = HtmlReportWriter.render(List.of(), 0, 0, winter, 0);
+            assertTrue(html.contains("America/New_York"));
+            assertTrue(html.contains("-05:00") || html.contains("UTC-05:00") || html.contains("-05"));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
+    }
+
     @Test
     void renderHandlesNullMetadataFields() {
         Watchlist.VulnerableMethod b = new Watchlist.VulnerableMethod(
