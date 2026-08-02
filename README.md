@@ -1,19 +1,45 @@
-# <img src="docs/radio-tracer-logo.png" alt="" width="40" height="40" align="left"> &nbsp;RadioTracer
+<p align="center">
+  <img src="docs/radio-tracer-logo.png" alt="RadioTracer" width="220">
+</p>
 
-**Dynamic reachability for known dependency vulnerabilities** · JVM agent (`radio-tracer-java`)
+<h1 align="center">RadioTracer</h1>
+<p align="center">
+  <b>Dynamic reachability for known dependency vulnerabilities · JVM agent (<code>radio-tracer-java</code>)</b>
+</p>
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-![Java](https://img.shields.io/badge/Java-25+-orange.svg)
-![Maven](https://img.shields.io/badge/build-Maven-C71A36.svg)
-![Coverage](https://img.shields.io/badge/coverage-100%25%20line%2Fbranch-brightgreen.svg)
-![Status](https://img.shields.io/badge/status-early%20preview-yellow.svg)
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Java-25+-orange.svg" alt="Java">
+  <img src="https://img.shields.io/badge/build-Maven-C71A36.svg" alt="Maven">
+  <img src="https://img.shields.io/badge/coverage-100%25%20line%2Fbranch-brightgreen.svg" alt="Coverage">
+  <img src="https://img.shields.io/badge/status-early%20preview-yellow.svg" alt="Status">
+</p>
 
-![SCA](https://img.shields.io/badge/SCA-agnostic-0A66C2?style=flat-square)
-![Runtime](https://img.shields.io/badge/runtime-method%20probes-6f42c1?style=flat-square)
-![Report](https://img.shields.io/badge/report-HTML-2088FF?style=flat-square)
-![Platform](https://img.shields.io/badge/platform-JVM%20first-red?style=flat-square)
+<p align="center">
+  <img src="https://img.shields.io/badge/SCA-agnostic-0A66C2?style=flat-square" alt="SCA">
+  <img src="https://img.shields.io/badge/runtime-method%20probes-6f42c1?style=flat-square" alt="Runtime">
+  <img src="https://img.shields.io/badge/report-HTML-2088FF?style=flat-square" alt="Report">
+  <img src="https://img.shields.io/badge/platform-JVM%20first-red?style=flat-square" alt="Platform">
+</p>
 
 ---
+
+<details open>
+<summary><b>Why the name RadioTracer</b></summary>
+<br/>
+
+In medicine and engineering, a **radiotracer** is a tiny probe you inject into a system so you can see where something actually goes — not where it *might* go on a map.
+
+That’s the product:
+
+| | |
+|--|--|
+| **Radio** | The “signal” — a known CVE / vulnerable method from your SCA watchlist |
+| **Tracer** | The agent injects a lightweight probe and reports when that path lights up at **runtime** |
+
+Package SCA is the inventory. Static graphs are the map. RadioTracer is the Geiger counter: **if the vulnerable method runs under your workload, you hear it.**
+
+</details>
 
 <details open>
 <summary><b>Why this exists</b></summary>
