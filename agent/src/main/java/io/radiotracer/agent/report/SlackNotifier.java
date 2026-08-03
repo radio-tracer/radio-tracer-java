@@ -157,12 +157,6 @@ public final class SlackNotifier {
     }
 
     private static String empty(String s, String fallback) {
-        if (s == null) {
-            return fallback;
-        }
-        if (s.isEmpty()) {
-            return fallback;
-        }
-        return s;
+        return s == null || s.isEmpty() ? fallback : s;
     }
 }

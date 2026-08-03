@@ -19,24 +19,23 @@ import java.util.concurrent.Executors;
 final class DemoWebServer {
 
     private final int port;
-    private HttpServer server;
 
     DemoWebServer(int port) {
         this.port = port;
     }
 
     void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
-        server.createContext("/", this::serveIndex);
-        server.createContext("/api/health", this::health);
-        server.createContext("/api/generate-report", this::generateReport);
-        server.createContext("/api/process-payment", this::processPayment);
-        server.setExecutor(Executors.newCachedThreadPool(r -> {
+        HttpServer http = HttpServer.create(new InetSocketAddress("0.0.0.0", port), 0);
+        http.createContext("/", this::serveIndex);
+        http.createContext("/api/health", this::health);
+        http.createContext("/api/generate-report", this::generateReport);
+        http.createContext("/api/process-payment", this::processPayment);
+        http.setExecutor(Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "demo-http");
             t.setDaemon(true);
             return t;
         }));
-        server.start();
+        http.start();
     }
 
     private void serveIndex(HttpExchange ex) throws IOException {

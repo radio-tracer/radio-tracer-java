@@ -1,6 +1,5 @@
 package io.radiotracer.agent.report;
 
-import java.nio.file.Path;
 import java.util.Locale;
 
 /**
