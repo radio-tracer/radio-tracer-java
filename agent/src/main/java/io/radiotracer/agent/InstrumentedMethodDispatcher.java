@@ -39,7 +39,13 @@ public final class InstrumentedMethodDispatcher {
         }
         if (m == null) {
             HitReporter.onMethodEnter(
-                    className, methodName, descriptor == null ? "" : descriptor, "", "");
+                    className,
+                    methodName,
+                    descriptor == null ? "" : descriptor,
+                    "",
+                    "",
+                    "",
+                    null);
             return;
         }
         HitReporter.onMethodEnter(
@@ -47,6 +53,8 @@ public final class InstrumentedMethodDispatcher {
                 m.methodName(),
                 descriptor != null ? descriptor : "",
                 m.cve(),
-                m.packageCoord());
+                m.packageCoord(),
+                m.severity(),
+                m.cvssScore());
     }
 }

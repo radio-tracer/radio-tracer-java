@@ -18,13 +18,18 @@ class HtmlReportWriterTest {
     @Test
     void renderIncludesCveLibraryUpgradeAndStatuses() {
         Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
-                "CVE-A", "g:a", "1.0", "1.1", "c.A", "m1", null, "osv", "high");
+                "CVE-A", "g:a", "1.0", "1.1", "c.A", "m1", null, "osv", "high",
+                "critical", 9.8, "CVSS:3.1/AV:N");
         String html = HtmlReportWriter.render(
                 List.of(new MethodResult(a, ReachabilityStatus.REACHABLE, 3)),
                 2, 1, Instant.parse("2026-01-01T00:00:00Z"), 3);
         assertTrue(html.contains("CVE-A"));
         assertTrue(html.contains("g:a@1.0"));
         assertTrue(html.contains("1.1"));
+        assertTrue(html.contains("critical"));
+        assertTrue(html.contains("9.8"));
+        assertTrue(html.contains("<th>Severity</th>"));
+        assertTrue(html.contains("<th>CVSS</th>"));
         assertTrue(html.contains("REACHABLE"));
         assertTrue(html.contains("NOT_OBSERVED (hidden)"));
         assertTrue(html.contains("Confidence"));
@@ -41,10 +46,13 @@ class HtmlReportWriterTest {
     @Test
     void consoleTableHasHeadersAndEmptyOptionalFields() {
         Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
-                "", "g:a", "1.0", "1.1", "c.A", "m1", null, "", "");
+                "", "g:a", "1.0", "1.1", "c.A", "m1", null, "", "",
+                "", null, "");
         String table = HtmlReportWriter.consoleTable(
                 List.of(new MethodResult(a, ReachabilityStatus.NOT_OBSERVED, 0)));
         assertTrue(table.contains("CVE"));
+        assertTrue(table.contains("Severity"));
+        assertTrue(table.contains("CVSS"));
         assertTrue(table.contains("—"));
         assertTrue(table.contains("NOT_OBSERVED"));
     }
@@ -52,7 +60,8 @@ class HtmlReportWriterTest {
     @Test
     void escapesHtmlInFields() {
         Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
-                "<script>", "g:a", "1", "2", "c.A", "m", null, "x", "y");
+                "<script>", "g:a", "1", "2", "c.A", "m", null, "x", "y",
+                "", null, "");
         String html = HtmlReportWriter.render(
                 List.of(new MethodResult(a, ReachabilityStatus.REACHABLE, 1)),
                 1, 0, Instant.now(), 1);
@@ -91,7 +100,8 @@ class HtmlReportWriterTest {
     @Test
     void renderHandlesNullMetadataFields() {
         Watchlist.VulnerableMethod b = new Watchlist.VulnerableMethod(
-                null, null, null, null, "c.A", "m", null, null, null);
+                null, null, null, null, "c.A", "m", null, null, null,
+                "", null, "");
         String html = HtmlReportWriter.render(
                 List.of(new MethodResult(b, ReachabilityStatus.REACHABLE, 1)),
                 1, 0, Instant.now(), 1);

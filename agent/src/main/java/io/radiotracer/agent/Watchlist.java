@@ -79,6 +79,9 @@ public final class Watchlist {
             String packageCoord;
             String installedVersion;
             String upgradeTo;
+            String severity;
+            Double cvssScore;
+            String cvssVector;
             String className;
             String methodName;
             String descriptor;
@@ -87,6 +90,10 @@ public final class Watchlist {
         }
     }
 
+    /**
+     * One watched callable. {@code severity} / {@code cvssScore} / {@code cvssVector}
+     * come from the SCA importer when present; they are optional for hand-written watchlists.
+     */
     public record VulnerableMethod(
             String cve,
             String packageCoord,
@@ -96,7 +103,10 @@ public final class Watchlist {
             String methodName,
             String descriptor,
             String source,
-            String confidence
+            String confidence,
+            String severity,
+            Double cvssScore,
+            String cvssVector
     ) {
         static VulnerableMethod from(Document.MethodEntry e) {
             if (e.className == null || e.className.isBlank()) {
@@ -115,7 +125,10 @@ public final class Watchlist {
                     e.methodName.trim(),
                     desc,
                     nullToEmpty(e.source),
-                    nullToEmpty(e.confidence)
+                    nullToEmpty(e.confidence),
+                    nullToEmpty(e.severity),
+                    e.cvssScore,
+                    nullToEmpty(e.cvssVector)
             );
         }
 
@@ -125,6 +138,22 @@ public final class Watchlist {
 
         public String displayMethod() {
             return className + "#" + methodName + (descriptor != null ? descriptor : "");
+        }
+
+        /** Human-readable CVSS base score, or empty when unknown. */
+        public String cvssScoreDisplay() {
+            if (cvssScore == null) {
+                return "";
+            }
+            double v = cvssScore;
+            if (Double.isNaN(v) || Double.isInfinite(v)) {
+                return "";
+            }
+            // Prefer compact form: 9.0 → "9", 9.8 → "9.8"
+            if (v == Math.rint(v)) {
+                return Long.toString((long) v);
+            }
+            return Double.toString(v);
         }
 
         @Override

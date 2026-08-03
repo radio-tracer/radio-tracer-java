@@ -42,6 +42,18 @@ public final class HitReporter {
             String cve,
             String packageCoord
     ) {
+        onMethodEnter(className, methodName, descriptor, cve, packageCoord, "", null);
+    }
+
+    public static void onMethodEnter(
+            String className,
+            String methodName,
+            String descriptor,
+            String cve,
+            String packageCoord,
+            String severity,
+            Double cvssScore
+    ) {
         try {
             String key = className + "#" + methodName + (descriptor == null ? "" : descriptor);
             TOTAL_HITS.incrementAndGet();
@@ -53,12 +65,16 @@ public final class HitReporter {
             }
 
             String thread = Thread.currentThread().getName();
-            out.println("[REACHABLE] "
-                    + Instant.now()
-                    + " cve=" + empty(cve, "?")
-                    + " package=" + empty(packageCoord, "?")
-                    + " method=" + key
-                    + " thread=" + thread);
+            StringBuilder line = new StringBuilder();
+            line.append("[REACHABLE] ")
+                    .append(Instant.now())
+                    .append(" cve=").append(empty(cve, "?"))
+                    .append(" severity=").append(empty(severity, "?"))
+                    .append(" cvss=").append(formatCvss(cvssScore))
+                    .append(" package=").append(empty(packageCoord, "?"))
+                    .append(" method=").append(key)
+                    .append(" thread=").append(thread);
+            out.println(line);
             out.flush();
 
             printCallerStack(out, Thread.currentThread().getStackTrace());
@@ -66,6 +82,20 @@ public final class HitReporter {
         } catch (Throwable t) {
             System.err.println("[radio-tracer] reporter error: " + t);
         }
+    }
+
+    private static String formatCvss(Double score) {
+        if (score == null) {
+            return "?";
+        }
+        double v = score;
+        if (Double.isNaN(v) || Double.isInfinite(v)) {
+            return "?";
+        }
+        if (v == Math.rint(v)) {
+            return Long.toString((long) v);
+        }
+        return Double.toString(v);
     }
 
     public static List<MethodResult> buildResults() {
