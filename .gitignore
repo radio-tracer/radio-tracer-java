@@ -55,3 +55,9 @@ Thumbs.db
 .e2e-java-apps/
 .e2e-webgoat/
 /scripts/
+
+
+# Multi-JVM report fragments / local e2e
+*.html.d/
+target-test-report*.html
+demo-report.html
