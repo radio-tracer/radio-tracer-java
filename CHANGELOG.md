@@ -23,6 +23,7 @@ Initial open-source release of the RadioTracer JVM agent: attach with `-javaagen
 - Skip empty HTML overwrite when another JVM already wrote a report to the same path
 - Demo modules (`demo-lib`, `demo-app`) and sample watchlist / report under `examples/`
 - CI with 100% line + branch coverage gate on the agent module
+- Tag-driven **Release** workflow: unit tests → demo-app integration → GitHub Release + agent JAR
 - CODEOWNERS and branch-protection docs
 
 ### Requirements
