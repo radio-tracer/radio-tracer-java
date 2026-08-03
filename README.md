@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
-  <img src="https://img.shields.io/badge/Java-25+-orange.svg" alt="Java">
+  <img src="https://img.shields.io/badge/Java-21%2B-orange.svg" alt="Java 21+">
   <img src="https://img.shields.io/badge/build-Maven-C71A36.svg" alt="Maven">
   <img src="https://img.shields.io/badge/coverage-100%25%20line%2Fbranch-brightgreen.svg" alt="Coverage">
   <img src="https://img.shields.io/badge/status-early%20preview-yellow.svg" alt="Status">
@@ -80,7 +80,7 @@ Static reachability helps triage, but it’s still a graph guess (reflection, DI
 **Prove a watched vulnerable method ran** under your tests / app.
 
 ```text
-SCA → watchlist (CVE → class#method)   [prep coming]
+SCA → methods.json   [radio-tracer-cve-import, optional]
          ↓
 java -javaagent:…=methods=watchlist.json,report=out.html
          ↓
@@ -96,7 +96,41 @@ stderr: [REACHABLE] on first hit  ·  HTML on JVM exit
 > **REACHABLE** = prioritize.  
 > **No hit** = not observed under this run — not “safe.”
 
-Does **not** replace SCA, prove exploitability, or invent CVE→method maps by itself.
+Does **not** replace SCA, prove exploitability, or invent CVE→method maps by itself. For SCA → watchlist generation, see [radio-tracer-cve-import](https://github.com/radio-tracer/radio-tracer-cve-import).
+
+</details>
+
+<details open>
+<summary><b>Support & requirements</b></summary>
+<br/>
+
+| | Supported today |
+|--|-----------------|
+| **Runtime (app JVM)** | **JDK 21+** (agent JAR is compiled with `--release 21`) |
+| **Build** | JDK **21+** (CI uses **25**; building on 25 with release 21 is fine) |
+| **Not supported** | Attaching the agent to **JDK ≤ 20** (class-file mismatch) |
+| **Build tool** | Maven 3.9+ |
+| **Coverage gate** | **100%** line + branch (JaCoCo) on the agent module |
+| **Platform** | JVM / Java agent (`-javaagent`) only — no Node/Python runtime agent yet |
+
+**Agent capabilities**
+
+| Feature | Support |
+|---------|---------|
+| Instrument methods by `className` + `methodName` | Yes |
+| Optional JVM method `descriptor` | Yes (narrows overloads) |
+| First-hit `[REACHABLE]` on stderr + stack | Yes |
+| Force-push / rewrite of dependency JARs | No — pure runtime weave |
+
+**Watchlist / SCA prep**
+
+| | |
+|--|--|
+| Hand-written `methods.json` | Yes |
+| Generated via Snyk → [radio-tracer-cve-import](https://github.com/radio-tracer/radio-tracer-cve-import) | Yes (companion tool) |
+| Built-in Dependabot / OSV inside this repo | No (importer side) |
+
+**Rule of thumb:** agent bytecode version ≤ app JVM version. Target **21** so the agent attaches cleanly to modern Spring/Gradle apps on 21+.
 
 </details>
 
@@ -104,7 +138,7 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 <summary><b>Quick start</b></summary>
 <br/>
 
-**Needs:** JDK **21+** to run the agent (bytecode target 21; build with 21 or 25). Maven 3.9+
+**Needs:** JDK **21+** (to run the agent and demos), Maven 3.9+
 
 ```bash
 mvn -q test package
@@ -131,19 +165,29 @@ Samples: [`examples/methods.json`](examples/methods.json) · [`examples/sample-r
 
 ```json
 {
-  "cve": "CVE-…",
-  "package": "group:artifact",
-  "installedVersion": "1.0.0",
-  "upgradeTo": "1.2.0",
-  "className": "com.example.Lib",
-  "methodName": "vulnerableApi",
-  "descriptor": "(Ljava/lang/String;)V",
-  "confidence": "high",
-  "source": "fix-commit"
+  "version": 1,
+  "methods": [
+    {
+      "cve": "CVE-…",
+      "package": "group:artifact",
+      "installedVersion": "1.0.0",
+      "upgradeTo": "1.2.0",
+      "className": "com.example.Lib",
+      "methodName": "vulnerableApi",
+      "descriptor": "(Ljava/lang/String;)V",
+      "confidence": "high",
+      "source": "snyk"
+    }
+  ]
 }
 ```
 
-`confidence` = quality of the CVE→method mapping, not CVSS.
+| Field | Notes |
+|-------|--------|
+| `methodName` | Method name to instrument |
+| `descriptor` | Optional JVM descriptor; omit to match all overloads |
+| `confidence` | Mapping quality (high/medium/low), **not** CVSS — optional for the agent |
+| Extra fields (`severity`, `cvssScore`, …) | Ignored by the agent if present (e.g. from cve-import) |
 
 </details>
 
@@ -156,7 +200,7 @@ agent/      Java agent + tests (JaCoCo 100% line/branch)
 demo-lib/   Fake vulnerable dependency
 demo-app/   App that calls the dep
 examples/   Watchlist + sample HTML report
-docs/       Logo
+docs/       Logo, branch protection notes
 ```
 
 </details>
@@ -166,8 +210,10 @@ docs/       Logo
 <br/>
 
 - [x] JVM agent + HTML report  
-- [ ] Prep: SCA → OSV / fix commits → methods.json  
-- [ ] `radio-tracer-python` and other runtimes under the RadioTracer umbrella  
+- [x] Java **21+** attach target  
+- [x] SCA → methods.json prep ([radio-tracer-cve-import](https://github.com/radio-tracer/radio-tracer-cve-import))  
+- [ ] Optional Java 17 bytecode profile for older fleets  
+- [ ] Other runtimes under the RadioTracer umbrella  
 
 </details>
 
