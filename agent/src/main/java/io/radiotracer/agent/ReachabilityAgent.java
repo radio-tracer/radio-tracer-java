@@ -27,12 +27,12 @@ import java.util.Locale;
  * </ol>
  *
  * <pre>
- * java -javaagent:agent.jar=methods=methods.json,report=report.html,label=my-module \
+ * java -javaagent:agent.jar=methods=methods.json,report=report.html,slack=https://hooks.slack.com/... \
  *      -cp app.jar:deps/* com.example.Main
  * </pre>
  * Multi-module: each JVM writes {@code report.html.d/&lt;label&gt;-&lt;pid&gt;.json} and merges
- * a flat HTML report (hit counts summed for the same CVE+method). Label defaults to Maven
- * {@code basedir} / {@code user.dir} leaf name.
+ * a flat HTML report (hit counts summed for the same CVE+method). Optional Slack Incoming
+ * Webhook notifies on first REACHABLE and on the end-of-run summary.
  */
 public final class ReachabilityAgent {
 
@@ -51,7 +51,11 @@ public final class ReachabilityAgent {
             AgentConfig config = AgentConfig.parse(agentArgs);
             Watchlist watchlist = Watchlist.load(config.methodsPath());
             InstrumentedMethodDispatcher.registerAll(watchlist.methods());
-            HitReporter.configure(config.reportPath(), watchlist.methods(), config.label());
+            HitReporter.configure(
+                    config.reportPath(),
+                    watchlist.methods(),
+                    config.label(),
+                    config.slackWebhook());
 
             Banner.print(System.err);
             System.err.println("[radio-tracer] agent starting...");
@@ -67,6 +71,11 @@ public final class ReachabilityAgent {
                 System.err.println("[radio-tracer] runLabel=" + config.label());
             } else {
                 System.err.println("[radio-tracer] runLabel=(auto from basedir/user.dir/pid)");
+            }
+            if (config.slackWebhook() != null) {
+                System.err.println("[radio-tracer] slack=on (first REACHABLE + summary)");
+            } else {
+                System.err.println("[radio-tracer] slack=off");
             }
             if (watchlist.size() == 0) {
                 System.err.println("[radio-tracer] watchlist is empty — agent idle (no instrumentation)");
@@ -186,8 +195,15 @@ public final class ReachabilityAgent {
      * Parses agent {@code -javaagent} argument strings.
      *
      * @param label optional module/JVM label ({@code label=} / {@code runId=} / {@code module=})
+     * @param slackWebhook optional Slack Incoming Webhook URL ({@code slack=} / env override)
      */
-    public record AgentConfig(Path methodsPath, Path reportPath, boolean verbose, String label) {
+    public record AgentConfig(
+            Path methodsPath,
+            Path reportPath,
+            boolean verbose,
+            String label,
+            String slackWebhook
+    ) {
 
         public static AgentConfig parse(String agentArgs) {
             if (agentArgs == null || agentArgs.isBlank()) {
@@ -200,6 +216,7 @@ public final class ReachabilityAgent {
             Path report = null;
             boolean verbose = false;
             String label = null;
+            String slack = null;
 
             if (!agentArgs.contains("=") && !agentArgs.contains(",")) {
                 methods = Path.of(agentArgs.trim());
@@ -223,6 +240,7 @@ public final class ReachabilityAgent {
                         case "report", "out", "output" -> report = Path.of(value);
                         case "verbose", "v" -> verbose = Boolean.parseBoolean(value) || "1".equals(value);
                         case "label", "runid", "module" -> label = value;
+                        case "slack", "slackwebhook", "webhook" -> slack = value;
                         default -> System.err.println("[radio-tracer] unknown agent arg: " + key);
                     }
                 }
@@ -234,7 +252,19 @@ public final class ReachabilityAgent {
             if (!Files.isRegularFile(methods)) {
                 throw new IllegalArgumentException("Methods file not found: " + methods.toAbsolutePath());
             }
-            return new AgentConfig(methods, report, verbose, label);
+            slack = firstNonBlank(slack, System.getenv("RADIO_TRACER_SLACK_WEBHOOK"));
+            return new AgentConfig(methods, report, verbose, label, slack);
+        }
+
+        /** Prefers primary; falls back to secondary (e.g. agent arg then env). */
+        static String firstNonBlank(String primary, String secondary) {
+            if (primary != null && !primary.isBlank()) {
+                return primary.trim();
+            }
+            if (secondary != null && !secondary.isBlank()) {
+                return secondary.trim();
+            }
+            return null;
         }
     }
 }

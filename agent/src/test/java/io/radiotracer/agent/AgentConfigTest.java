@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+// assertNull already imported
 
 class AgentConfigTest {
 
@@ -51,6 +52,29 @@ class AgentConfigTest {
                 "methods=" + methods + ",module=mod").label());
         assertEquals("", ReachabilityAgent.AgentConfig.parse(
                 "methods=" + methods + ",label=").label());
+    }
+
+    @Test
+    void parseSlackWebhook(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("m.json");
+        Files.writeString(methods, "{}");
+        String url = "https://hooks.slack.com/services/T/B/XXX";
+        ReachabilityAgent.AgentConfig cfg = ReachabilityAgent.AgentConfig.parse(
+                "methods=" + methods + ",slack=" + url);
+        assertEquals(url, cfg.slackWebhook());
+        ReachabilityAgent.AgentConfig cfg2 = ReachabilityAgent.AgentConfig.parse(
+                "methods=" + methods + ",webhook=" + url);
+        assertEquals(url, cfg2.slackWebhook());
+        assertNull(ReachabilityAgent.AgentConfig.parse("methods=" + methods).slackWebhook());
+    }
+
+    @Test
+    void firstNonBlankPrefersPrimaryThenSecondary() {
+        assertEquals("a", ReachabilityAgent.AgentConfig.firstNonBlank("a", "b"));
+        assertEquals("b", ReachabilityAgent.AgentConfig.firstNonBlank("  ", "b"));
+        assertEquals("b", ReachabilityAgent.AgentConfig.firstNonBlank(null, " b "));
+        assertNull(ReachabilityAgent.AgentConfig.firstNonBlank(null, null));
+        assertNull(ReachabilityAgent.AgentConfig.firstNonBlank("", "  "));
     }
 
     @Test
