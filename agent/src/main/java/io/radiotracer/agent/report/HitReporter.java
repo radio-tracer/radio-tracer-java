@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -135,15 +136,32 @@ public final class HitReporter {
             Path path = reportPath;
             if (path != null) {
                 Path htmlPath = ensureHtmlPath(path);
-                String html = HtmlReportWriter.render(
-                        reached, results.size(), notObserved, Instant.now(), total);
-                Path parent = htmlPath.getParent();
-                if (parent != null) {
-                    Files.createDirectories(parent);
+                // When JAVA_TOOL_OPTIONS attaches the agent to Maven *and* Surefire forks,
+                // each JVM writes the same report path on exit. The parent Maven JVM often
+                // has 0 hits and would clobber a good Surefire report — skip that.
+                if (total == 0 && Files.isRegularFile(htmlPath)) {
+                    out.println("[radio-tracer] skipping empty HTML overwrite (keeping existing report): "
+                            + htmlPath.toAbsolutePath());
+                    out.flush();
+                } else {
+                    String html = HtmlReportWriter.render(
+                            reached, results.size(), notObserved, Instant.now(), total);
+                    Path parent = htmlPath.getParent();
+                    if (parent != null) {
+                        Files.createDirectories(parent);
+                    }
+                    // Explicit create/truncate so a prior run is always replaced when we do write.
+                    Files.writeString(
+                            htmlPath,
+                            html,
+                            StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE);
+                    out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
+                            + " (reachable=" + reachable + ", total_hits=" + total + ")");
+                    out.flush();
                 }
-                Files.writeString(htmlPath, html, StandardCharsets.UTF_8);
-                out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath());
-                out.flush();
             }
         } catch (Throwable t) {
             System.err.println("[radio-tracer] failed to write report: " + t);

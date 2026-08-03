@@ -29,7 +29,7 @@ class VulnerableMethodAdviceTest {
 
         VulnerableMethodAdvice.onEnter("pkg.Cls", "run", "()V");
 
-        assertEquals(ReachabilityStatus.REACHABLE, HitReporter.buildResults().getFirst().status());
-        assertEquals(1, HitReporter.buildResults().getFirst().hitCount());
+        assertEquals(ReachabilityStatus.REACHABLE, HitReporter.buildResults().get(0).status());
+        assertEquals(1, HitReporter.buildResults().get(0).hitCount());
     }
 }

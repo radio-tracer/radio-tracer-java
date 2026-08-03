@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HitReporterTest {
@@ -40,8 +41,8 @@ class HitReporterTest {
 
         List<MethodResult> results = HitReporter.buildResults();
         assertEquals(2, results.size());
-        assertEquals(ReachabilityStatus.REACHABLE, results.getFirst().status());
-        assertEquals(2, results.getFirst().hitCount());
+        assertEquals(ReachabilityStatus.REACHABLE, results.get(0).status());
+        assertEquals(2, results.get(0).hitCount());
         assertEquals(ReachabilityStatus.NOT_OBSERVED, results.get(1).status());
     }
 
@@ -59,12 +60,50 @@ class HitReporterTest {
     }
 
     @Test
+    void writeFinalReportOverwritesWhenHitsPresent(@TempDir Path dir) throws Exception {
+        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
+                "CVE-OW", "g:a", "1", "2", "c.O", "m", null, "", "");
+        Path report = dir.resolve("out.html");
+        Files.writeString(report, "STALE");
+        HitReporter.configure(report, List.of(m));
+        HitReporter.onMethodEnter("c.O", "m", "()V", "CVE-OW", "g:a");
+        HitReporter.writeFinalReport();
+        String html = Files.readString(report);
+        assertTrue(html.contains("CVE-OW"));
+        assertFalse(html.contains("STALE"));
+    }
+
+    @Test
+    void writeFinalReportSkipsEmptyOverwriteOfExisting(@TempDir Path dir) throws Exception {
+        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
+                "CVE-KEEP", "g:a", "1", "2", "c.K", "m", null, "", "");
+        Path report = dir.resolve("keep.html");
+        Files.writeString(report, "GOOD-REPORT-WITH-HITS");
+        HitReporter.configure(report, List.of(m));
+        // no onMethodEnter → total hits 0
+        HitReporter.writeFinalReport();
+        assertEquals("GOOD-REPORT-WITH-HITS", Files.readString(report));
+    }
+
+    @Test
+    void writeFinalReportWritesEmptyWhenNoPriorFile(@TempDir Path dir) throws Exception {
+        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
+                "CVE-E", "g:a", "1", "2", "c.E", "m", null, "", "");
+        Path report = dir.resolve("empty-new.html");
+        HitReporter.configure(report, List.of(m));
+        HitReporter.writeFinalReport();
+        assertTrue(Files.isRegularFile(report));
+        assertTrue(Files.readString(report).contains("no reachable")
+                || Files.readString(report).contains("REACHABLE"));
+    }
+
+    @Test
     void writeFinalReportWithNoHitsAndNoHtmlPath() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
                 "CVE-0", "g:a", "1", "2", "c.A", "never", null, "", "");
         HitReporter.configure(null, List.of(m));
         HitReporter.writeFinalReport();
-        assertEquals(0, HitReporter.buildResults().getFirst().hitCount());
+        assertEquals(0, HitReporter.buildResults().get(0).hitCount());
     }
 
     @Test
@@ -79,7 +118,7 @@ class HitReporterTest {
                 "CVE-N", "g:a", "1", "2", "c.N", "n", null, "", "");
         HitReporter.configure(null, List.of(m));
         HitReporter.onMethodEnter("c.N", "n", null, "", "");
-        assertEquals(1, HitReporter.buildResults().getFirst().hitCount());
+        assertEquals(1, HitReporter.buildResults().get(0).hitCount());
     }
 
     @Test
@@ -171,7 +210,7 @@ class HitReporterTest {
                 "CVE-S", "g:a", "1", "2", "c.S", "s", null, "", "");
         HitReporter.configure(null, List.of(m));
         deepHit(12);
-        assertEquals(1, HitReporter.buildResults().getFirst().hitCount());
+        assertEquals(1, HitReporter.buildResults().get(0).hitCount());
     }
 
     @Test

@@ -23,8 +23,12 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- Requires JDK 25+ to build and run (matches current LTS toolchain). -->
-    <maven.compiler.release>25</maven.compiler.release>
+    <!--
+      Bytecode target for the agent JAR: 21 so -javaagent loads on JDK 21+ apps
+      used in E2E (java-goof, VulnerableApp/Gradle 8.5). Building on JDK 25 is fine.
+      Targeting 25 made E2E fail: class file 69 on a Java 21 runtime.
+    -->
+    <maven.compiler.release>21</maven.compiler.release>
     <bytebuddy.version>1.17.6</bytebuddy.version>
     <gson.version>2.13.1</gson.version>
     <junit.version>5.12.2</junit.version>
