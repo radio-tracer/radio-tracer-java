@@ -51,6 +51,7 @@ credentials.*
 # OS
 Thumbs.db
 
-# Local E2E workspaces
+# Local E2E workspaces / drivers (not part of the published agent)
 .e2e-java-apps/
 .e2e-webgoat/
+/scripts/
