@@ -44,13 +44,9 @@ class HtmlReportWriterTest {
     }
 
     @Test
-    void renderRunsMergesFlatAndSumsHits() {
+    void renderMergedSumsHitsAcrossJvms() {
         JvmRunSnapshot a = new JvmRunSnapshot();
-        a.label = "mod-a";
-        a.pid = 1;
-        a.totalHits = 2;
         a.watchedTotal = 3;
-        a.reachableCount = 1;
         JvmRunSnapshot.ReachedRow rowA = new JvmRunSnapshot.ReachedRow();
         rowA.cve = "CVE-1";
         rowA.method = "c.A#m";
@@ -59,11 +55,7 @@ class HtmlReportWriterTest {
         a.reached = List.of(rowA);
 
         JvmRunSnapshot b = new JvmRunSnapshot();
-        b.label = "mod-b";
-        b.pid = 2;
-        b.totalHits = 3;
         b.watchedTotal = 3;
-        b.reachableCount = 1;
         JvmRunSnapshot.ReachedRow rowB = new JvmRunSnapshot.ReachedRow();
         rowB.cve = "CVE-1";
         rowB.method = "c.A#m";
@@ -71,20 +63,19 @@ class HtmlReportWriterTest {
         rowB.hitCount = 3;
         b.reached = List.of(rowB);
 
-        String html = HtmlReportWriter.renderRuns(List.of(a, b), Instant.parse("2026-01-01T00:00:00Z"));
+        String html = HtmlReportWriter.renderMerged(List.of(a, b), Instant.parse("2026-01-01T00:00:00Z"));
         assertTrue(html.contains("CVE-1"));
-        assertTrue(html.contains(">5</td>") || html.contains("total invocations: 5"));
+        assertTrue(html.contains("total invocations: 5"));
+        assertTrue(html.contains("hit counts summed"));
         assertFalse(html.contains("data-tab="));
-        assertTrue(html.contains("merged flat") || html.contains("hit counts summed"));
     }
 
     @Test
-    void renderRunsEmptyListStillProducesHtml() {
-        String html = HtmlReportWriter.renderRuns(List.of(), Instant.now());
+    void renderMergedEmptyProducesPlaceholder() {
+        String html = HtmlReportWriter.renderMerged(List.of(), Instant.now());
         assertTrue(html.contains("Dynamic Reachability Report"));
         assertTrue(html.contains("No reachable"));
-        String htmlNull = HtmlReportWriter.renderRuns(null, Instant.now());
-        assertTrue(htmlNull.contains("Dynamic Reachability Report"));
+        assertTrue(HtmlReportWriter.renderMerged(null, Instant.now()).contains("Dynamic Reachability Report"));
     }
 
     @Test
@@ -168,3 +159,4 @@ class HtmlReportWriterTest {
         assertEquals("x", HtmlReportWriter.emptyAsDash("x"));
     }
 }
+

@@ -15,9 +15,11 @@ public final class HtmlReportWriter {
     private HtmlReportWriter() {}
 
     /**
-     * @param reachedRows only REACHABLE rows (printed in the table)
+     * Single-JVM report (tests / simple runs).
+     *
+     * @param reachedRows only REACHABLE rows
      * @param watchedTotal full watchlist size
-     * @param notObservedCount watched methods never hit (summary only, not listed)
+     * @param notObservedCount unused (derived from watched − reachable for multi-merge path)
      */
     public static String render(
             List<MethodResult> reachedRows,
@@ -26,35 +28,34 @@ public final class HtmlReportWriter {
             Instant generatedAt,
             long totalHits
     ) {
-        return renderRuns(
-                List.of(snapshotFromLegacy(reachedRows, watchedTotal, totalHits, generatedAt)),
-                generatedAt
-        );
+        JvmRunSnapshot single = new JvmRunSnapshot();
+        single.label = "run";
+        single.pid = RunLabel.currentPid();
+        single.generatedAt = generatedAt.toString();
+        single.totalHits = totalHits;
+        single.watchedTotal = watchedTotal;
+        single.reachableCount = reachedRows.size();
+        single.reached = reachedRows.stream()
+                .map(r -> JvmRunSnapshot.ReachedRow.from(r, r.method()))
+                .toList();
+        return renderMerged(List.of(single), generatedAt);
     }
 
     /**
-     * Multi-JVM report: fragments are merged into <strong>one flat table</strong>.
+     * Multi-JVM report: fragments merged into one flat table.
      * Same CVE+method across JVMs → hit counts summed.
      */
-    public static String renderRuns(List<JvmRunSnapshot> runs, Instant generatedAt) {
+    public static String renderMerged(List<JvmRunSnapshot> runs, Instant generatedAt) {
         if (runs == null) {
             runs = List.of();
         }
 
         List<JvmRunSnapshot.ReachedRow> merged = JvmRunSnapshot.mergeReached(runs);
         int watched = JvmRunSnapshot.maxWatched(runs);
-        long totalHits = JvmRunSnapshot.sumTotalHits(runs);
-        // Prefer sum of row hits when fragments present (matches table); fall back to JVM totals.
-        long tableHits = merged.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
-        if (tableHits > 0) {
-            totalHits = tableHits;
-        }
+        long totalHits = merged.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
         int reachable = merged.size();
         long notObserved = Math.max(0, watched - reachable);
-        int jvmCount = (int) runs.stream().filter(JvmRunSnapshot::hasHits).count();
-        if (jvmCount == 0) {
-            jvmCount = runs.size();
-        }
+        int jvmCount = Math.max(1, runs.size());
 
         return """
                 <!DOCTYPE html>
@@ -116,34 +117,13 @@ public final class HtmlReportWriter {
                 </html>
                 """.formatted(
                 esc(formatGeneratedAt(generatedAt)),
-                Math.max(jvmCount, 1),
+                jvmCount,
                 totalHits,
                 watched,
                 reachable,
                 notObserved,
                 tableHtml(merged)
         );
-    }
-
-    private static JvmRunSnapshot snapshotFromLegacy(
-            List<MethodResult> reachedRows,
-            int watchedTotal,
-            long totalHits,
-            Instant generatedAt
-    ) {
-        JvmRunSnapshot s = new JvmRunSnapshot();
-        s.label = "run";
-        s.pid = RunLabel.currentPid();
-        s.generatedAt = generatedAt.toString();
-        s.totalHits = totalHits;
-        s.watchedTotal = watchedTotal;
-        s.reachableCount = reachedRows.size();
-        List<JvmRunSnapshot.ReachedRow> rows = new java.util.ArrayList<>();
-        for (MethodResult r : reachedRows) {
-            rows.add(JvmRunSnapshot.ReachedRow.from(r, r.method()));
-        }
-        s.reached = List.copyOf(rows);
-        return s;
     }
 
     private static String tableHtml(List<JvmRunSnapshot.ReachedRow> reachedRows) {
@@ -269,13 +249,7 @@ public final class HtmlReportWriter {
     }
 
     static String emptyAsDash(String s) {
-        if (s == null) {
-            return "—";
-        }
-        if (s.isEmpty()) {
-            return "—";
-        }
-        return s;
+        return s == null || s.isEmpty() ? "—" : s;
     }
 
     private static String esc(String s) {

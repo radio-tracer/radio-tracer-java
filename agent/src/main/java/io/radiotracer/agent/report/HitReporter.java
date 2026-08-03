@@ -14,13 +14,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Collects runtime hits for watched methods and writes the final HTML report
  * (plus a console summary table) on shutdown.
  * <p>
  * Multi-module / multi-JVM: each process writes a JSON fragment under
- * {@code report.html.d/} then merges all fragments into a tabbed HTML report
- * under a file lock so concurrent Surefire forks do not clobber each other.
+ * {@code report.html.d/}, then merges all fragments into one flat HTML table
+ * (hit counts summed for the same CVE+method) under a file lock.
  */
 public final class HitReporter {
 
@@ -205,9 +206,7 @@ public final class HitReporter {
                         + " (label=" + label + ", hits=" + total + ")");
 
                 List<JvmRunSnapshot> all = JvmRunSnapshot.loadAll(fragmentsDir);
-                // Empty JVM fragments contribute no rows; keep them for hit-sum via totalHits only
-                // when they had hits. Flat merge sums CVE+method hit counts across all fragments.
-                String html = HtmlReportWriter.renderRuns(all, now);
+                String html = HtmlReportWriter.renderMerged(all, now);
                 Path parent = htmlPath.getParent();
                 if (parent != null) {
                     Files.createDirectories(parent);

@@ -79,9 +79,7 @@ public final class JvmRunSnapshot {
             if (s == null) {
                 s = new JvmRunSnapshot();
             }
-            if (s.label == null) {
-                s.label = "unknown";
-            } else if (s.label.isBlank()) {
+            if (s.label == null || s.label.isBlank()) {
                 s.label = "unknown";
             }
             if (s.reached == null) {
@@ -140,14 +138,6 @@ public final class JvmRunSnapshot {
         return merged;
     }
 
-    /** Sum of per-JVM invocation totals (for summary cards). */
-    public static long sumTotalHits(List<JvmRunSnapshot> runs) {
-        if (runs == null) {
-            return 0;
-        }
-        return runs.stream().mapToLong(JvmRunSnapshot::totalHits).sum();
-    }
-
     public static int maxWatched(List<JvmRunSnapshot> runs) {
         if (runs == null || runs.isEmpty()) {
             return 0;
@@ -176,10 +166,6 @@ public final class JvmRunSnapshot {
 
     public long pid() {
         return pid;
-    }
-
-    public String generatedAt() {
-        return generatedAt;
     }
 
     public long totalHits() {

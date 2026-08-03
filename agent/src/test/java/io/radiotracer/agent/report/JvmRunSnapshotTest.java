@@ -24,32 +24,13 @@ class JvmRunSnapshotTest {
         JvmRunSnapshot s = JvmRunSnapshot.fromResults("mod-a", 42, List.of(r), 2, Instant.EPOCH);
         Path file = dir.resolve("mod-a-42.json");
         s.write(file);
+
         JvmRunSnapshot loaded = JvmRunSnapshot.read(file);
         assertEquals("mod-a", loaded.label());
         assertEquals(42, loaded.pid());
         assertEquals(1, loaded.reachableCount());
         assertEquals("CVE-1", loaded.reached().get(0).cve());
         assertTrue(loaded.hasHits());
-        // parent == null branch of write (relative path in temp cwd)
-        Path prev = Path.of("").toAbsolutePath();
-        try {
-            System.setProperty("user.dir", dir.toString());
-            JvmRunSnapshot bare = JvmRunSnapshot.fromResults("x", 1, List.of(), 0, Instant.EPOCH);
-            bare.write(Path.of("bare-fragment.json"));
-            assertTrue(Files.isRegularFile(dir.resolve("bare-fragment.json"))
-                    || Files.isRegularFile(Path.of("bare-fragment.json")));
-        } finally {
-            Files.deleteIfExists(Path.of("bare-fragment.json"));
-            Files.deleteIfExists(dir.resolve("bare-fragment.json"));
-        }
-        assertFalse(s.hasHits() && s.reachableCount() == 0);
-        JvmRunSnapshot zero = new JvmRunSnapshot();
-        zero.totalHits = 1;
-        zero.reachableCount = 0;
-        assertFalse(zero.hasHits());
-        zero.totalHits = 0;
-        zero.reachableCount = 1;
-        assertFalse(zero.hasHits());
     }
 
     @Test
@@ -70,33 +51,25 @@ class JvmRunSnapshotTest {
 
         JvmRunSnapshot a = new JvmRunSnapshot();
         a.reached = List.of(r1);
-        a.totalHits = 2;
         a.watchedTotal = 5;
         JvmRunSnapshot b = new JvmRunSnapshot();
         b.reached = List.of(r2, r3);
-        b.totalHits = 4;
         b.watchedTotal = 5;
 
         List<JvmRunSnapshot.ReachedRow> merged = JvmRunSnapshot.mergeReached(List.of(a, b));
         assertEquals(2, merged.size());
-        JvmRunSnapshot.ReachedRow cve1 = merged.stream()
-                .filter(r -> "CVE-1".equals(r.cve()))
-                .findFirst()
-                .orElseThrow();
-        assertEquals(5, cve1.hitCount());
-        assertEquals("high", cve1.severity());
-        assertEquals(0, JvmRunSnapshot.mergeReached(null).size());
-        assertEquals(0, JvmRunSnapshot.mergeReached(List.of()).size());
-        assertEquals(6, JvmRunSnapshot.sumTotalHits(List.of(a, b)));
+        assertEquals(5, merged.stream().filter(r -> "CVE-1".equals(r.cve())).findFirst().orElseThrow().hitCount());
+        assertEquals("high", merged.stream().filter(r -> "CVE-1".equals(r.cve())).findFirst().orElseThrow().severity());
+        assertTrue(JvmRunSnapshot.mergeReached(null).isEmpty());
+        assertTrue(JvmRunSnapshot.mergeReached(List.of()).isEmpty());
         assertEquals(5, JvmRunSnapshot.maxWatched(List.of(a, b)));
-        assertEquals(0, JvmRunSnapshot.sumTotalHits(null));
         assertEquals(0, JvmRunSnapshot.maxWatched(null));
     }
 
     @Test
-    void loadAllSkipsBadAndSorts(@TempDir Path dir) throws Exception {
-        assertTrue(JvmRunSnapshot.loadAll(dir.resolve("missing")).isEmpty());
+    void loadAllSkipsBadJsonAndSorts(@TempDir Path dir) throws Exception {
         assertTrue(JvmRunSnapshot.loadAll(null).isEmpty());
+        assertTrue(JvmRunSnapshot.loadAll(dir.resolve("missing")).isEmpty());
 
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
                 "C", "g", "1", "2", "c.A", "m", null, "", "",
@@ -105,12 +78,6 @@ class JvmRunSnapshotTest {
                 "b-mod", 2, List.of(new MethodResult(m, ReachabilityStatus.NOT_OBSERVED, 0)), 0, Instant.now());
         JvmRunSnapshot b = JvmRunSnapshot.fromResults(
                 "a-mod", 1, List.of(new MethodResult(m, ReachabilityStatus.REACHABLE, 1)), 1, Instant.now());
-        // force a hit for b
-        b.totalHits = 1;
-        b.reachableCount = 1;
-        b.reached = List.of(JvmRunSnapshot.ReachedRow.from(
-                new MethodResult(m, ReachabilityStatus.REACHABLE, 1), m));
-
         a.write(dir.resolve("b-mod-2.json"));
         b.write(dir.resolve("a-mod-1.json"));
         Files.writeString(dir.resolve("broken.json"), "{not-json");
@@ -122,7 +89,32 @@ class JvmRunSnapshotTest {
     }
 
     @Test
-    void reachedRowNullSafeGetters() {
+    void readNormalizesMissingLabelAndReached(@TempDir Path dir) throws Exception {
+        Path f = dir.resolve("x.json");
+        Files.writeString(f, "{\"version\":1,\"label\":\"\",\"pid\":1,\"reached\":null}");
+        assertEquals("unknown", JvmRunSnapshot.read(f).label());
+        assertTrue(JvmRunSnapshot.read(f).reached().isEmpty());
+
+        Files.writeString(dir.resolve("null-label.json"), "{\"version\":1,\"label\":null,\"pid\":1}");
+        assertEquals("unknown", JvmRunSnapshot.read(dir.resolve("null-label.json")).label());
+
+        Files.writeString(dir.resolve("null.json"), "null");
+        assertEquals("unknown", JvmRunSnapshot.read(dir.resolve("null.json")).label());
+
+        JvmRunSnapshot emptyHits = new JvmRunSnapshot();
+        emptyHits.totalHits = 1;
+        emptyHits.reachableCount = 0;
+        assertFalse(emptyHits.hasHits());
+        emptyHits.totalHits = 0;
+        emptyHits.reachableCount = 1;
+        assertFalse(emptyHits.hasHits());
+        emptyHits.reached = null;
+        assertTrue(emptyHits.reached().isEmpty());
+        assertEquals(0, emptyHits.totalHits());
+    }
+
+    @Test
+    void reachedRowNullAndEmptySafeGetters() {
         JvmRunSnapshot.ReachedRow row = new JvmRunSnapshot.ReachedRow();
         row.cve = null;
         row.severity = null;
@@ -149,35 +141,30 @@ class JvmRunSnapshotTest {
         assertEquals("—", row.upgradeTo());
         row.library = "g:a";
         row.upgradeTo = "2";
+        row.severity = "high";
+        row.cvssScore = "9.8";
+        row.method = "m";
         row.status = "REACHABLE";
+        row.confidence = "high";
+        row.source = "s";
         assertEquals("g:a", row.library());
         assertEquals("2", row.upgradeTo());
-        assertEquals("REACHABLE", row.status());
+        assertEquals("high", row.severity());
+        assertEquals("9.8", row.cvssScore());
+        assertEquals("m", row.method());
+        assertEquals("high", row.confidence());
+        assertEquals("s", row.source());
     }
 
     @Test
-    void readNormalizesBlankLabelAndNullReached(@TempDir Path dir) throws Exception {
-        Path f = dir.resolve("x.json");
-        Files.writeString(f, "{\"version\":1,\"label\":\"\",\"pid\":1,\"reached\":null}");
-        JvmRunSnapshot s = JvmRunSnapshot.read(f);
-        assertEquals("unknown", s.label());
-        assertTrue(s.reached().isEmpty());
-
-        Path noLabel = dir.resolve("nolabel.json");
-        // Explicit JSON null forces Gson to set label=null (absent fields may keep defaults).
-        Files.writeString(noLabel, "{\"version\":1,\"label\":null,\"pid\":9}");
-        JvmRunSnapshot missing = JvmRunSnapshot.read(noLabel);
-        assertEquals("unknown", missing.label());
-        assertEquals("", missing.generatedAt() == null ? "" : missing.generatedAt());
-
-        Path empty = dir.resolve("empty.json");
-        Files.writeString(empty, "null");
-        JvmRunSnapshot n = JvmRunSnapshot.read(empty);
-        assertEquals("unknown", n.label());
-        assertTrue(n.reached().isEmpty());
-
-        JvmRunSnapshot mut = new JvmRunSnapshot();
-        mut.reached = null;
-        assertTrue(mut.reached().isEmpty());
+    void writeWithRelativePathNoParent() throws Exception {
+        Path rel = Path.of("rt-fragment-tmp.json");
+        try {
+            JvmRunSnapshot s = JvmRunSnapshot.fromResults("x", 1, List.of(), 0, Instant.EPOCH);
+            s.write(rel);
+            assertTrue(Files.isRegularFile(rel));
+        } finally {
+            Files.deleteIfExists(rel);
+        }
     }
 }
