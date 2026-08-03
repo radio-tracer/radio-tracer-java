@@ -50,3 +50,7 @@ credentials.*
 
 # OS
 Thumbs.db
+
+# Local E2E workspaces
+.e2e-java-apps/
+.e2e-webgoat/

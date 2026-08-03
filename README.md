@@ -104,7 +104,7 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 <summary><b>Quick start</b></summary>
 <br/>
 
-**Needs:** JDK 25+, Maven 3.9+
+**Needs:** JDK **21+** to run the agent (bytecode target 21; build with 21 or 25). Maven 3.9+
 
 ```bash
 mvn -q test package

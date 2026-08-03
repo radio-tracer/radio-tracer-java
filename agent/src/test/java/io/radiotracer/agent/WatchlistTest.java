@@ -36,7 +36,7 @@ class WatchlistTest {
                 """;
         Watchlist wl = Watchlist.parse(new StringReader(json));
         assertEquals(1, wl.size());
-        Watchlist.VulnerableMethod m = wl.methods().getFirst();
+        Watchlist.VulnerableMethod m = wl.methods().get(0);
         assertEquals("CVE-1", m.cve());
         assertEquals("g:a", m.packageCoord());
         assertEquals("1.0.0", m.installedVersion());
@@ -61,17 +61,17 @@ class WatchlistTest {
                 """);
         Watchlist wl = Watchlist.load(file);
         assertEquals(1, wl.size());
-        assertEquals("CVE-X", wl.methods().getFirst().cve());
+        assertEquals("CVE-X", wl.methods().get(0).cve());
         // no descriptor → display without descriptor suffix only class#method
-        assertEquals("a.B#m", wl.methods().getFirst().displayMethod());
-        assertTrue(wl.methods().getFirst().toString().contains("CVE-X"));
+        assertEquals("a.B#m", wl.methods().get(0).displayMethod());
+        assertTrue(wl.methods().get(0).toString().contains("CVE-X"));
     }
 
     @Test
-    void rejectsEmptyMethods() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> Watchlist.parse(new StringReader("{\"methods\":[]}")));
-        assertTrue(ex.getMessage().contains("zero methods"));
+    void allowsEmptyMethods() throws Exception {
+        Watchlist wl = Watchlist.parse(new StringReader("{\"methods\":[]}"));
+        assertEquals(0, wl.size());
+        assertTrue(wl.watchedClassNames().isEmpty());
     }
 
     @Test
@@ -116,7 +116,7 @@ class WatchlistTest {
                   "cve":null
                 }]}
                 """));
-        Watchlist.VulnerableMethod m = wl.methods().getFirst();
+        Watchlist.VulnerableMethod m = wl.methods().get(0);
         assertEquals("a.B", m.className());
         assertEquals("m", m.methodName());
         assertEquals(null, m.descriptor());

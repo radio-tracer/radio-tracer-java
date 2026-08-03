@@ -55,24 +55,27 @@ public final class ReachabilityAgent {
             System.err.println("[radio-tracer] watchlist=" + config.methodsPath().toAbsolutePath()
                     + " methods=" + watchlist.size()
                     + " classes=" + watchlist.watchedClassNames().size());
-            if (config.reportPath() instanceof Path report) {
-                System.err.println("[radio-tracer] report=" + report.toAbsolutePath());
+            if (config.reportPath() != null) {
+                System.err.println("[radio-tracer] report=" + config.reportPath().toAbsolutePath());
             } else {
                 System.err.println("[radio-tracer] report=none (console table only; no HTML file)");
             }
-            for (Watchlist.VulnerableMethod m : watchlist.methods()) {
-                System.err.println("[radio-tracer]   watching " + m
-                        + (m.upgradeTo().isEmpty() ? "" : " upgradeTo=" + m.upgradeTo()));
+            if (watchlist.size() == 0) {
+                System.err.println("[radio-tracer] watchlist is empty — agent idle (no instrumentation)");
+            } else {
+                for (Watchlist.VulnerableMethod m : watchlist.methods()) {
+                    System.err.println("[radio-tracer]   watching " + m
+                            + (m.upgradeTo().isEmpty() ? "" : " upgradeTo=" + m.upgradeTo()));
+                }
+                install(inst, watchlist, config.verbose());
+                System.err.println("[radio-tracer] instrumentation installed at class-load time; "
+                        + "hits reported when methods run");
             }
 
-            install(inst, watchlist, config.verbose());
-
-            Runtime.getRuntime().addShutdownHook(
-                    Thread.ofPlatform()
-                            .name("radio-tracer-report")
-                            .unstarted(HitReporter::writeFinalReport));
-            System.err.println("[radio-tracer] instrumentation installed at class-load time; "
-                    + "hits reported when methods run");
+            // Classic Thread API keeps agent bytecode on Java 17+ (not Thread.ofPlatform from 21).
+            Thread reportHook = new Thread(HitReporter::writeFinalReport, "radio-tracer-report");
+            reportHook.setDaemon(false);
+            Runtime.getRuntime().addShutdownHook(reportHook);
         } catch (Throwable t) {
             System.err.println("[radio-tracer] failed to start agent: " + t);
             t.printStackTrace(System.err);
@@ -92,7 +95,7 @@ public final class ReachabilityAgent {
                 .ignore(ElementMatchers.nameStartsWith("io.radiotracer.agent"))
                 .ignore(ElementMatchers.nameStartsWith("net.bytebuddy"))
                 .type(typeMatcher)
-                .transform((builder, typeDescription, _, _, protectionDomain) -> {
+                .transform((builder, typeDescription, classLoader, module, protectionDomain) -> {
                     String name = typeDescription.getName();
                     if (verbose) {
                         System.err.println("[radio-tracer] instrumenting class=" + name

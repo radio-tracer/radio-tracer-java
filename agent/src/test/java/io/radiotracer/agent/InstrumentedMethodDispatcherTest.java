@@ -32,8 +32,8 @@ class InstrumentedMethodDispatcherTest {
 
         List<MethodResult> results = HitReporter.buildResults();
         assertEquals(1, results.size());
-        assertEquals(ReachabilityStatus.REACHABLE, results.getFirst().status());
-        assertEquals("CVE-X", results.getFirst().cve());
+        assertEquals(ReachabilityStatus.REACHABLE, results.get(0).status());
+        assertEquals("CVE-X", results.get(0).cve());
     }
 
     @Test
@@ -45,7 +45,7 @@ class InstrumentedMethodDispatcherTest {
 
         InstrumentedMethodDispatcher.dispatch("c.B", "bar", "(I)V");
 
-        assertEquals(1, HitReporter.buildResults().getFirst().hitCount());
+        assertEquals(1, HitReporter.buildResults().get(0).hitCount());
     }
 
     @Test
@@ -63,6 +63,6 @@ class InstrumentedMethodDispatcherTest {
         InstrumentedMethodDispatcher.registerAll(List.of(m));
         HitReporter.configure(null, List.of(m));
         InstrumentedMethodDispatcher.dispatch("c.C", "z", null);
-        assertEquals(ReachabilityStatus.REACHABLE, HitReporter.buildResults().getFirst().status());
+        assertEquals(ReachabilityStatus.REACHABLE, HitReporter.buildResults().get(0).status());
     }
 }

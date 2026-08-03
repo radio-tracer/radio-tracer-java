@@ -39,7 +39,7 @@ jobs:
       - name: Upload agent JAR
         uses: actions/upload-artifact@v4
         with:
-          name: radio-tracer-agent-java${{ matrix.java }}
+          name: radio-tracer-agent
           path: agent/target/radio-tracer-agent-*.jar
           if-no-files-found: error
 
@@ -47,6 +47,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jacoco-report-java${{ matrix.java }}
+          name: jacoco-report
           path: agent/target/site/jacoco/
           if-no-files-found: ignore

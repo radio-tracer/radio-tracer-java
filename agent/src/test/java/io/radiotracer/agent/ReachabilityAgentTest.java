@@ -87,6 +87,18 @@ class ReachabilityAgentTest {
     }
 
     @Test
+    void emptyWatchlistStartsIdleWithoutThrowing(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("empty.json");
+        Files.writeString(methods, "{\"methods\":[]}");
+        Path report = dir.resolve("empty-report.html");
+        Instrumentation inst = ByteBuddyAgent.install();
+        assertDoesNotThrow(() ->
+                ReachabilityAgent.premain(
+                        "methods=" + methods + ",report=" + report + ",verbose=true", inst));
+        // shutdown hook may write empty report later; no instrumentation expected
+    }
+
+    @Test
     void locationOfViaReflection() {
         assertEquals("?", TestAccess.invokeStatic(
                 ReachabilityAgent.class, "locationOf",
@@ -162,9 +174,9 @@ class ReachabilityAgentTest {
 
         var results = io.radiotracer.agent.report.HitReporter.buildResults();
         assertEquals(1, results.size());
-        assertEquals(io.radiotracer.agent.report.ReachabilityStatus.REACHABLE, results.getFirst().status());
+        assertEquals(io.radiotracer.agent.report.ReachabilityStatus.REACHABLE, results.get(0).status());
         // All three overloads counted under one watchlist entry (no descriptor).
-        assertEquals(3, results.getFirst().hitCount());
+        assertEquals(3, results.get(0).hitCount());
 
         io.radiotracer.agent.report.HitReporter.writeFinalReport();
         assertTrue(Files.isRegularFile(report));

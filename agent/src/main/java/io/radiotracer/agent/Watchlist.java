@@ -49,9 +49,7 @@ public final class Watchlist {
         List<VulnerableMethod> parsed = doc.methods.stream()
                 .map(VulnerableMethod::from)
                 .toList();
-        if (parsed.isEmpty()) {
-            throw new IllegalArgumentException("Watchlist has zero methods; nothing to instrument");
-        }
+        // Empty is allowed: agent starts, reports nothing to watch (useful for e2e wiring).
         return new Watchlist(parsed);
     }
 
