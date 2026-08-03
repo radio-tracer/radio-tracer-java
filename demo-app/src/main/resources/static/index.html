@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Acme Finance · Reports</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --panel: #121a2b;
+      --panel-2: #182235;
+      --border: #243049;
+      --text: #e8eefc;
+      --muted: #93a4c3;
+      --accent: #5b8cff;
+      --accent-2: #22d3ee;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --ok: #34d399;
+      --shadow: 0 20px 50px rgba(0,0,0,.35);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(91,140,255,.25), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(34,211,238,.12), transparent 50%),
+        var(--bg);
+    }
+    .shell { max-width: 1080px; margin: 0 auto; padding: 1.5rem; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: 1.5rem;
+    }
+    .brand { display: flex; align-items: center; gap: .85rem; }
+    .logo {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid; place-items: center; font-weight: 800; color: #041018;
+      box-shadow: 0 8px 24px rgba(91,140,255,.35);
+    }
+    .brand h1 { margin: 0; font-size: 1.15rem; letter-spacing: .2px; }
+    .brand p { margin: .15rem 0 0; color: var(--muted); font-size: .85rem; }
+    .pill {
+      border: 1px solid var(--border); background: rgba(255,255,255,.03);
+      color: var(--muted); border-radius: 999px; padding: .4rem .8rem; font-size: .8rem;
+    }
+    .pill strong { color: var(--ok); font-weight: 600; }
+
+    .hero {
+      background: linear-gradient(180deg, rgba(255,255,255,.04), transparent), var(--panel);
+      border: 1px solid var(--border); border-radius: 20px; padding: 1.5rem;
+      box-shadow: var(--shadow); margin-bottom: 1rem;
+    }
+    .hero h2 { margin: 0 0 .4rem; font-size: 1.55rem; }
+    .hero p { margin: 0; color: var(--muted); line-height: 1.5; max-width: 46rem; }
+
+    .grid {
+      display: grid; grid-template-columns: 1.2fr .8fr; gap: 1rem;
+    }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 18px; padding: 1.15rem 1.25rem; box-shadow: var(--shadow);
+    }
+    .card h3 { margin: 0 0 .35rem; font-size: 1rem; }
+    .card .sub { color: var(--muted); font-size: .88rem; margin: 0 0 1rem; line-height: 1.45; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: .65rem; }
+    button {
+      appearance: none; border: 0; cursor: pointer; border-radius: 12px;
+      padding: .75rem 1rem; font-weight: 650; font-size: .92rem;
+      transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+    }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .55; cursor: wait; }
+    .btn-primary {
+      color: #041018;
+      background: linear-gradient(135deg, #7aa2ff, #5b8cff 45%, #22d3ee);
+      box-shadow: 0 10px 28px rgba(91,140,255,.35);
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-secondary {
+      color: var(--text); background: var(--panel-2); border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: #3b4d72; }
+
+    .meta-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; margin-top: 1rem;
+    }
+    .stat {
+      background: var(--panel-2); border: 1px solid var(--border);
+      border-radius: 12px; padding: .7rem .8rem;
+    }
+    .stat .k { color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+    .stat .v { margin-top: .2rem; font-weight: 650; font-size: .95rem; }
+    .sev-crit { color: var(--danger); }
+    .sev-high { color: var(--warn); }
+
+    .log {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .8rem; line-height: 1.45; color: #c9d7f5;
+      background: #0a101c; border: 1px solid var(--border); border-radius: 12px;
+      min-height: 220px; max-height: 320px; overflow: auto; padding: .85rem;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    .log .ts { color: #6b7c9c; }
+    .log .ok { color: var(--ok); }
+    .log .hit { color: var(--danger); font-weight: 700; }
+    .log .info { color: var(--accent-2); }
+
+    footer {
+      margin-top: 1.25rem; color: var(--muted); font-size: .8rem; line-height: 1.45;
+    }
+    footer code {
+      background: rgba(255,255,255,.05); border: 1px solid var(--border);
+      border-radius: 6px; padding: .05rem .35rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <div class="logo">AF</div>
+        <div>
+          <h1>Acme Finance Console</h1>
+          <p>Internal reporting · demo app for RadioTracer</p>
+        </div>
+      </div>
+      <div class="pill">Agent status: <strong id="agentHint">attach with -javaagent</strong></div>
+    </header>
+
+    <section class="hero">
+      <h2>Quarterly risk reports</h2>
+      <p>
+        Generate PDF packages for compliance review. Behind the scenes this app calls a
+        dependency method that maps to a known CVE on the RadioTracer watchlist —
+        so when you click the button, the agent should fire <code>[REACHABLE]</code> in the terminal.
+      </p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h3>Actions</h3>
+        <p class="sub">
+          These buttons call application services that reach into
+          <code>demo-lib</code> (the “vulnerable” dependency). They do not exploit anything —
+          they only prove the path is live under this workload.
+        </p>
+        <div class="actions">
+          <button class="btn-primary" id="btnReport" type="button">Generate report</button>
+          <button class="btn-secondary" id="btnPay" type="button">Process payment token</button>
+        </div>
+        <div class="meta-row">
+          <div class="stat">
+            <div class="k">Primary path</div>
+            <div class="v sev-crit">DeserUtil#deserialize · critical</div>
+          </div>
+          <div class="stat">
+            <div class="k">Secondary path</div>
+            <div class="v sev-high">CryptoHelper#weakDecrypt · high</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3>Activity</h3>
+        <p class="sub">App-side log (agent REACHABLE lines appear in the process stderr / terminal).</p>
+        <div class="log" id="log" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <footer>
+      Tip for demos: start with
+      <code>java -javaagent:…=methods=examples/methods.json,report=/tmp/rt.html -cp … com.example.app.DemoApp</code>
+      then open this page and click <strong>Generate report</strong>.
+    </footer>
+  </div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg, cls) {
+      const ts = new Date().toISOString().slice(11, 19);
+      const line = document.createElement('div');
+      line.innerHTML = '<span class="ts">[' + ts + ']</span> '
+        + (cls ? '<span class="' + cls + '">' : '')
+        + msg
+        + (cls ? '</span>' : '');
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    async function post(path, label) {
+      const btnReport = document.getElementById('btnReport');
+      const btnPay = document.getElementById('btnPay');
+      btnReport.disabled = true; btnPay.disabled = true;
+      log(label + '…', 'info');
+      try {
+        const res = await fetch(path, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        log('OK · ' + data.watchedMethod + ' · ' + data.cve + ' (' + data.severity + ')', 'ok');
+        log('→ watch terminal for [REACHABLE] from RadioTracer', 'hit');
+        if (data.hint) log(data.hint);
+      } catch (e) {
+        log('Failed: ' + e.message, 'hit');
+      } finally {
+        btnReport.disabled = false; btnPay.disabled = false;
+      }
+    }
+
+    document.getElementById('btnReport').addEventListener('click', () =>
+      post('/api/generate-report', 'Generate report'));
+    document.getElementById('btnPay').addEventListener('click', () =>
+      post('/api/process-payment', 'Process payment token'));
+
+    fetch('/api/health').then(r => r.json()).then(h => {
+      log('Connected · dep ' + h.depVersion, 'ok');
+      document.getElementById('agentHint').textContent = 'listening · click to probe';
+    }).catch(() => log('Health check failed', 'hit'));
+  </script>
+</body>
+</html>

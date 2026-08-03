@@ -145,10 +145,14 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 ```bash
 mvn -q test package
 
+# Browser UI (video demos): open http://localhost:8080 and click "Generate report"
 java -javaagent:agent/target/radio-tracer-agent-0.1.0.jar=\
 methods=examples/methods.json,report=/tmp/radio-tracer-report.html \
   -cp "demo-app/target/demo-app-0.1.0.jar:demo-app/target/deps/*" \
   com.example.app.DemoApp
+
+# Headless (CI): same paths, exit after hits
+java -javaagent:… -cp … com.example.app.DemoApp --cli
 ```
 
 | Arg | Meaning |
@@ -157,6 +161,8 @@ methods=examples/methods.json,report=/tmp/radio-tracer-report.html \
 | `report=` | HTML path (optional; written on JVM exit). Multi-JVM: fragments in `report.html.d/`, **flat-merged** HTML |
 | `label=` / `runId=` / `module=` | JVM id for fragments (optional; else Maven `basedir` / `user.dir` / pid) |
 | `verbose=true` | Log which classes get instrumented |
+
+**Demo UI:** default `DemoApp` serves a small Acme Finance console. **Generate report** calls `OrderService.importOrder` → watched `DeserUtil#deserialize` (critical). Watch the terminal for `[REACHABLE]`.
 
 **Multi-module Maven (Surefire):** attach the agent via `argLine` (not only `JAVA_TOOL_OPTIONS` on the parent) and point every module at the **same** `report=` path. Each fork appends a fragment; the final HTML is one table (hit counts summed for the same CVE+method):
 

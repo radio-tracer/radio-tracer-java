@@ -48,7 +48,7 @@ set +e
 java \
   -javaagent:"${AGENT}=methods=${METHODS},report=${REPORT}" \
   -cp "${APP}:demo-app/target/deps/*" \
-  com.example.app.DemoApp \
+  com.example.app.DemoApp --cli \
   >"$LOG" 2>&1
 rc=$?
 set -e
