@@ -7,9 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: demo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-demo:
-    name: Package & run demo with agent
+    name: Package & integration demo
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,15 +24,13 @@ jobs:
           java-version: "25"
           cache: maven
 
-      - name: Build all modules
+      - name: Package all modules
         run: mvn -B -q package -DskipTests
 
-      - name: Run demo app under agent
-        run: |
-          java -javaagent:agent/target/radio-tracer-agent-0.1.0-SNAPSHOT.jar=\
-methods=examples/methods.json,report=$GITHUB_WORKSPACE/demo-report.html \
-            -cp "demo-app/target/demo-app-0.1.0-SNAPSHOT.jar:demo-app/target/deps/*" \
-            com.example.app.DemoApp
+      - name: Integration test (demo-app under agent)
+        run: bash .github/scripts/integration-demo.sh
+        env:
+          REPORT: ${{ github.workspace }}/demo-report.html
 
       - name: Upload HTML report
         if: always()
