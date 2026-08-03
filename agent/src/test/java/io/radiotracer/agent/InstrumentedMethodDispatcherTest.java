@@ -24,7 +24,8 @@ class InstrumentedMethodDispatcherTest {
     @Test
     void dispatchWithExactDescriptorUsesCveMetadata() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-X", "g:a", "1", "2", "c.A", "foo", "()V", "src", "high");
+                "CVE-X", "g:a", "1", "2", "c.A", "foo", "()V", "src", "high",
+                "", null, "");
         InstrumentedMethodDispatcher.registerAll(List.of(m));
         HitReporter.configure(null, List.of(m));
 
@@ -39,7 +40,8 @@ class InstrumentedMethodDispatcherTest {
     @Test
     void dispatchFallsBackToNameOnlyWhenDescriptorMisses() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-Y", "g:a", "1", "2", "c.B", "bar", null, "src", "med");
+                "CVE-Y", "g:a", "1", "2", "c.B", "bar", null, "src", "med",
+                "", null, "");
         InstrumentedMethodDispatcher.registerAll(List.of(m));
         HitReporter.configure(null, List.of(m));
 
@@ -59,7 +61,8 @@ class InstrumentedMethodDispatcherTest {
     @Test
     void registerWithoutDescriptorOnlyIndexesName() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-Z", "g:a", "", "", "c.C", "z", null, "", "");
+                "CVE-Z", "g:a", "", "", "c.C", "z", null, "", "",
+                "", null, "");
         InstrumentedMethodDispatcher.registerAll(List.of(m));
         HitReporter.configure(null, List.of(m));
         InstrumentedMethodDispatcher.dispatch("c.C", "z", null);

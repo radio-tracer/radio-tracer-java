@@ -25,6 +25,9 @@ class WatchlistTest {
                       "package": "g:a",
                       "installedVersion": "1.0.0",
                       "upgradeTo": "1.2.0",
+                      "severity": "critical",
+                      "cvssScore": 9.8,
+                      "cvssVector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
                       "className": "com.foo.Bar",
                       "methodName": "baz",
                       "descriptor": "()V",
@@ -41,6 +44,10 @@ class WatchlistTest {
         assertEquals("g:a", m.packageCoord());
         assertEquals("1.0.0", m.installedVersion());
         assertEquals("1.2.0", m.upgradeTo());
+        assertEquals("critical", m.severity());
+        assertEquals(9.8, m.cvssScore());
+        assertEquals("9.8", m.cvssScoreDisplay());
+        assertEquals("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", m.cvssVector());
         assertEquals("com.foo.Bar", m.className());
         assertEquals("baz", m.methodName());
         assertEquals("()V", m.descriptor());
@@ -49,6 +56,46 @@ class WatchlistTest {
         assertEquals(List.of(), wl.methodsForClass("no.Such"));
         assertTrue(m.toString().contains("CVE-1"));
         assertTrue(m.displayMethod().contains("baz"));
+    }
+
+    @Test
+    void severityAndCvssOptionalWhenAbsent() {
+        Watchlist wl = Watchlist.parse(new StringReader("""
+                {"methods":[{
+                  "className":"a.B",
+                  "methodName":"m",
+                  "cve":"CVE-X"
+                }]}
+                """));
+        Watchlist.VulnerableMethod m = wl.methods().get(0);
+        assertEquals("", m.severity());
+        assertEquals(null, m.cvssScore());
+        assertEquals("", m.cvssScoreDisplay());
+        assertEquals("", m.cvssVector());
+    }
+
+    @Test
+    void cvssScoreDisplayFormatsWholeNumbersAndGuards() {
+        Watchlist.VulnerableMethod whole = new Watchlist.VulnerableMethod(
+                "C", "g:a", "1", "2", "c.A", "m", null, "s", "high",
+                "high", 7.0, "");
+        assertEquals("7", whole.cvssScoreDisplay());
+        Watchlist.VulnerableMethod frac = new Watchlist.VulnerableMethod(
+                "C", "g:a", "1", "2", "c.A", "m", null, "s", "high",
+                "high", 9.8, "");
+        assertEquals("9.8", frac.cvssScoreDisplay());
+        Watchlist.VulnerableMethod nan = new Watchlist.VulnerableMethod(
+                "C", "g:a", "1", "2", "c.A", "m", null, "s", "high",
+                "high", Double.NaN, "");
+        assertEquals("", nan.cvssScoreDisplay());
+        Watchlist.VulnerableMethod inf = new Watchlist.VulnerableMethod(
+                "C", "g:a", "1", "2", "c.A", "m", null, "s", "high",
+                "high", Double.POSITIVE_INFINITY, "");
+        assertEquals("", inf.cvssScoreDisplay());
+        Watchlist.VulnerableMethod missing = new Watchlist.VulnerableMethod(
+                "C", "g:a", "1", "2", "c.A", "m", null, "s", "high",
+                "high", null, "");
+        assertEquals("", missing.cvssScoreDisplay());
     }
 
     @Test

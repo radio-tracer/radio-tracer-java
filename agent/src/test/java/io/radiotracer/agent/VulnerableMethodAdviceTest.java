@@ -23,7 +23,8 @@ class VulnerableMethodAdviceTest {
     @Test
     void onEnterDispatchesToReporter() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-A", "g:a", "1", "2", "pkg.Cls", "run", "()V", "t", "high");
+                "CVE-A", "g:a", "1", "2", "pkg.Cls", "run", "()V", "t", "high",
+                "", null, "");
         InstrumentedMethodDispatcher.registerAll(List.of(m));
         HitReporter.configure(null, List.of(m));
 

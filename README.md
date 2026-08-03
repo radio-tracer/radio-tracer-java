@@ -120,6 +120,7 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 | Instrument methods by `className` + `methodName` | Yes |
 | Optional JVM method `descriptor` | Yes (narrows overloads) |
 | First-hit `[REACHABLE]` on stderr + stack | Yes |
+| Severity / CVSS in logs + HTML/console report | Yes (from watchlist) |
 | Force-push / rewrite of dependency JARs | No — pure runtime weave |
 
 **Watchlist / SCA prep**
@@ -172,6 +173,9 @@ Samples: [`examples/methods.json`](examples/methods.json) · [`examples/sample-r
       "package": "group:artifact",
       "installedVersion": "1.0.0",
       "upgradeTo": "1.2.0",
+      "severity": "critical",
+      "cvssScore": 9.8,
+      "cvssVector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
       "className": "com.example.Lib",
       "methodName": "vulnerableApi",
       "descriptor": "(Ljava/lang/String;)V",
@@ -186,8 +190,8 @@ Samples: [`examples/methods.json`](examples/methods.json) · [`examples/sample-r
 |-------|--------|
 | `methodName` | Method name to instrument |
 | `descriptor` | Optional JVM descriptor; omit to match all overloads |
+| `severity` / `cvssScore` / `cvssVector` | SCA risk (shown in `[REACHABLE]` logs + HTML/console report); optional |
 | `confidence` | Mapping quality (high/medium/low), **not** CVSS — optional for the agent |
-| Extra fields (`severity`, `cvssScore`, …) | Ignored by the agent if present (e.g. from cve-import) |
 
 </details>
 

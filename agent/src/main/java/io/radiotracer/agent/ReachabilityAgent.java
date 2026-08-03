@@ -64,8 +64,17 @@ public final class ReachabilityAgent {
                 System.err.println("[radio-tracer] watchlist is empty — agent idle (no instrumentation)");
             } else {
                 for (Watchlist.VulnerableMethod m : watchlist.methods()) {
-                    System.err.println("[radio-tracer]   watching " + m
-                            + (m.upgradeTo().isEmpty() ? "" : " upgradeTo=" + m.upgradeTo()));
+                    StringBuilder line = new StringBuilder("[radio-tracer]   watching ").append(m);
+                    if (!m.severity().isEmpty()) {
+                        line.append(" severity=").append(m.severity());
+                    }
+                    if (m.cvssScore() != null) {
+                        line.append(" cvss=").append(m.cvssScoreDisplay());
+                    }
+                    if (!m.upgradeTo().isEmpty()) {
+                        line.append(" upgradeTo=").append(m.upgradeTo());
+                    }
+                    System.err.println(line);
                 }
                 install(inst, watchlist, config.verbose());
                 System.err.println("[radio-tracer] instrumentation installed at class-load time; "

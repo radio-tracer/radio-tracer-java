@@ -42,6 +42,8 @@
     <thead>
       <tr>
         <th>CVE</th>
+        <th>Severity</th>
+        <th>CVSS</th>
         <th>Vulnerable library</th>
         <th>Upgrade to</th>
         <th>Method</th>
@@ -52,15 +54,19 @@
       </tr>
     </thead>
     <tbody>
-<tr class="reachable"><td>CVE-2023-DEMO-0001</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.DeserUtil#deserialize(Ljava/lang/String;)Ljava/lang/Object;</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>high</td><td>mock-fix-commit</td></tr>
-<tr class="reachable"><td>CVE-2023-DEMO-0002</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.3.1</td><td><code>com.example.vulnlib.CryptoHelper#weakDecrypt</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>medium</td><td>mock-advisory-listing</td></tr>
-<tr class="reachable"><td>CVE-2023-DEMO-0003</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.CryptoHelper#version</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>low</td><td>mock-false-lead</td></tr>
+<tr class="reachable"><td>CVE-2023-DEMO-0001</td><td>critical</td><td class="num">9.8</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.DeserUtil#deserialize(Ljava/lang/String;)Ljava/lang/Object;</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>high</td><td>mock-fix-commit</td></tr>
+<tr class="reachable"><td>CVE-2023-DEMO-0002</td><td>high</td><td class="num">7.5</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.3.1</td><td><code>com.example.vulnlib.CryptoHelper#weakDecrypt</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>medium</td><td>mock-advisory-listing</td></tr>
+<tr class="reachable"><td>CVE-2023-DEMO-0003</td><td>medium</td><td class="num">5.3</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.CryptoHelper#version</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>low</td><td>mock-false-lead</td></tr>
     </tbody>
   </table>
   <div class="notes">
     <p>
       The table lists only <strong>REACHABLE</strong> methods (executed under this workload).
       The <strong>NOT_OBSERVED</strong> count is summary-only and does not mean the issue is safe.
+    </p>
+    <p>
+      <strong>Severity</strong> and <strong>CVSS</strong> come from the SCA scanner (via the watchlist)
+      and describe advisory risk — they are not proof of exploitability at runtime.
     </p>
     <p>
       <strong>Confidence</strong> is the strength of the CVE→method mapping from the watchlist

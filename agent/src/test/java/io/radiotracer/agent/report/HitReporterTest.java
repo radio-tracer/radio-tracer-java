@@ -30,10 +30,12 @@ class HitReporterTest {
     void buildResultsMarksReachedAndNotObserved() {
         Watchlist.VulnerableMethod reached = new Watchlist.VulnerableMethod(
                 "CVE-1", "g:lib", "1.0", "2.0",
-                "com.ex.A", "foo", "()V", "osv", "high");
+                "com.ex.A", "foo", "()V", "osv", "high",
+                "", null, "");
         Watchlist.VulnerableMethod notCalled = new Watchlist.VulnerableMethod(
                 "CVE-2", "g:lib", "1.0", "2.1",
-                "com.ex.A", "bar", null, "osv", "medium");
+                "com.ex.A", "bar", null, "osv", "medium",
+                "", null, "");
 
         HitReporter.configure(null, List.of(reached, notCalled));
         HitReporter.onMethodEnter("com.ex.A", "foo", "()V", "CVE-1", "g:lib");
@@ -50,19 +52,58 @@ class HitReporterTest {
     void writeFinalReportCreatesHtml(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
                 "CVE-9", "org.demo:lib", "3.0.0", "3.1.0",
-                "org.demo.X", "run", null, "scan", "high");
+                "org.demo.X", "run", null, "scan", "high",
+                "critical", 9.8, "CVSS:3.1/AV:N");
         Path report = dir.resolve("out.html");
         HitReporter.configure(report, List.of(m));
-        HitReporter.onMethodEnter("org.demo.X", "run", "()V", "CVE-9", "org.demo:lib");
+        HitReporter.onMethodEnter(
+                "org.demo.X", "run", "()V", "CVE-9", "org.demo:lib", "critical", 9.8);
         HitReporter.writeFinalReport();
         assertTrue(Files.isRegularFile(report));
-        assertTrue(Files.readString(report).contains("CVE-9"));
+        String html = Files.readString(report);
+        assertTrue(html.contains("CVE-9"));
+        assertTrue(html.contains("critical"));
+        assertTrue(html.contains("9.8"));
+    }
+
+    @Test
+    void onMethodEnterLogsSeverityAndCvss(@TempDir Path dir) throws Exception {
+        Path log = dir.resolve("err.txt");
+        PrintStream capture = new PrintStream(Files.newOutputStream(log));
+        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
+                "CVE-LOG", "g:lib", "1", "2", "c.L", "hit", "()V", "s", "high",
+                "high", 7.5, "");
+        HitReporter.configure(null, List.of(m));
+        TestAccess.setStaticField(HitReporter.class, "out", capture);
+        HitReporter.onMethodEnter("c.L", "hit", "()V", "CVE-LOG", "g:lib", "high", 7.5);
+        capture.flush();
+        String text = Files.readString(log);
+        assertTrue(text.contains("[REACHABLE]"));
+        assertTrue(text.contains("severity=high"));
+        assertTrue(text.contains("cvss=7.5"));
+        assertTrue(text.contains("cve=CVE-LOG"));
+        TestAccess.setStaticField(HitReporter.class, "out", System.err);
+    }
+
+    @Test
+    void formatCvssCoversNullNanInfiniteAndWhole() {
+        assertEquals("?", TestAccess.invokeStatic(
+                HitReporter.class, "formatCvss", new Class<?>[]{Double.class}, (Object) null));
+        assertEquals("?", TestAccess.invokeStatic(
+                HitReporter.class, "formatCvss", new Class<?>[]{Double.class}, Double.NaN));
+        assertEquals("?", TestAccess.invokeStatic(
+                HitReporter.class, "formatCvss", new Class<?>[]{Double.class}, Double.NEGATIVE_INFINITY));
+        assertEquals("9", TestAccess.invokeStatic(
+                HitReporter.class, "formatCvss", new Class<?>[]{Double.class}, 9.0));
+        assertEquals("7.5", TestAccess.invokeStatic(
+                HitReporter.class, "formatCvss", new Class<?>[]{Double.class}, 7.5));
     }
 
     @Test
     void writeFinalReportOverwritesWhenHitsPresent(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-OW", "g:a", "1", "2", "c.O", "m", null, "", "");
+                "CVE-OW", "g:a", "1", "2", "c.O", "m", null, "", "",
+                "", null, "");
         Path report = dir.resolve("out.html");
         Files.writeString(report, "STALE");
         HitReporter.configure(report, List.of(m));
@@ -76,7 +117,8 @@ class HitReporterTest {
     @Test
     void writeFinalReportSkipsEmptyOverwriteOfExisting(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-KEEP", "g:a", "1", "2", "c.K", "m", null, "", "");
+                "CVE-KEEP", "g:a", "1", "2", "c.K", "m", null, "", "",
+                "", null, "");
         Path report = dir.resolve("keep.html");
         Files.writeString(report, "GOOD-REPORT-WITH-HITS");
         HitReporter.configure(report, List.of(m));
@@ -88,7 +130,8 @@ class HitReporterTest {
     @Test
     void writeFinalReportWritesEmptyWhenNoPriorFile(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-E", "g:a", "1", "2", "c.E", "m", null, "", "");
+                "CVE-E", "g:a", "1", "2", "c.E", "m", null, "", "",
+                "", null, "");
         Path report = dir.resolve("empty-new.html");
         HitReporter.configure(report, List.of(m));
         HitReporter.writeFinalReport();
@@ -100,7 +143,8 @@ class HitReporterTest {
     @Test
     void writeFinalReportWithNoHitsAndNoHtmlPath() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-0", "g:a", "1", "2", "c.A", "never", null, "", "");
+                "CVE-0", "g:a", "1", "2", "c.A", "never", null, "", "",
+                "", null, "");
         HitReporter.configure(null, List.of(m));
         HitReporter.writeFinalReport();
         assertEquals(0, HitReporter.buildResults().get(0).hitCount());
@@ -115,7 +159,8 @@ class HitReporterTest {
     @Test
     void onMethodEnterWithNullDescriptorAndEmptyCve() {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-N", "g:a", "1", "2", "c.N", "n", null, "", "");
+                "CVE-N", "g:a", "1", "2", "c.N", "n", null, "", "",
+                "", null, "");
         HitReporter.configure(null, List.of(m));
         HitReporter.onMethodEnter("c.N", "n", null, "", "");
         assertEquals(1, HitReporter.buildResults().get(0).hitCount());
@@ -124,12 +169,15 @@ class HitReporterTest {
     @Test
     void resolveHitsMatchesDescriptorsThroughPublicApi() {
         Watchlist.VulnerableMethod nameOnly = new Watchlist.VulnerableMethod(
-                "C1", "g", "1", "2", "pkg.A", "m", null, "", "");
+                "C1", "g", "1", "2", "pkg.A", "m", null, "", "",
+                "", null, "");
         Watchlist.VulnerableMethod exactHit = new Watchlist.VulnerableMethod(
-                "C2", "g", "1", "2", "pkg.B", "go", "()V", "", "");
+                "C2", "g", "1", "2", "pkg.B", "go", "()V", "", "",
+                "", null, "");
         // Pinned descriptor not present in hits → exact lookup misses, prefix still matches other overload
         Watchlist.VulnerableMethod exactMiss = new Watchlist.VulnerableMethod(
-                "C3", "g", "1", "2", "pkg.C", "run", "()V", "", "");
+                "C3", "g", "1", "2", "pkg.C", "run", "()V", "", "",
+                "", null, "");
 
         HitReporter.configure(null, List.of(nameOnly, exactHit, exactMiss));
         HitReporter.onMethodEnter("pkg.A", "m", "", "C1", "g");
@@ -170,7 +218,8 @@ class HitReporterTest {
     @Test
     void writeReportCreatesParentDirs(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-P", "g:a", "1", "2", "c.P", "p", null, "", "");
+                "CVE-P", "g:a", "1", "2", "c.P", "p", null, "", "",
+                "", null, "");
         Path nested = dir.resolve("a/b/c/report.html");
         HitReporter.configure(nested, List.of(m));
         HitReporter.onMethodEnter("c.P", "p", "()V", "CVE-P", "g:a");
@@ -181,7 +230,8 @@ class HitReporterTest {
     @Test
     void writeHtmlWithRelativePathNoParent() throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-R", "g:a", "1", "2", "c.R", "r", null, "", "");
+                "CVE-R", "g:a", "1", "2", "c.R", "r", null, "", "",
+                "", null, "");
         Path relative = Path.of("target-test-report-no-parent.html");
         try {
             HitReporter.configure(relative, List.of(m));
@@ -207,7 +257,8 @@ class HitReporterTest {
 
         TestAccess.setStaticField(HitReporter.class, "out", System.err);
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-S", "g:a", "1", "2", "c.S", "s", null, "", "");
+                "CVE-S", "g:a", "1", "2", "c.S", "s", null, "", "",
+                "", null, "");
         HitReporter.configure(null, List.of(m));
         deepHit(12);
         assertEquals(1, HitReporter.buildResults().get(0).hitCount());
@@ -242,7 +293,8 @@ class HitReporterTest {
     @Test
     void writeFinalReportSwallowsIoFailure(@TempDir Path dir) throws Exception {
         Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-F", "g:a", "1", "2", "c.F", "f", null, "", "");
+                "CVE-F", "g:a", "1", "2", "c.F", "f", null, "", "",
+                "", null, "");
         Path blocker = dir.resolve("blocker");
         Files.writeString(blocker, "not-a-dir");
         Path impossible = blocker.resolve("out.html");

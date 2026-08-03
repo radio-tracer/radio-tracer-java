@@ -31,6 +31,8 @@ public final class HtmlReportWriter {
         for (MethodResult r : reachedRows) {
             rows.append("<tr class=\"reachable\">")
                     .append("<td>").append(esc(r.cve())).append("</td>")
+                    .append("<td>").append(esc(emptyAsDash(r.severity()))).append("</td>")
+                    .append("<td class=\"num\">").append(esc(emptyAsDash(r.cvssScore()))).append("</td>")
                     .append("<td>").append(esc(r.library())).append("</td>")
                     .append("<td>").append(esc(r.upgradeTo())).append("</td>")
                     .append("<td><code>").append(esc(r.method().displayMethod())).append("</code></td>")
@@ -41,7 +43,7 @@ public final class HtmlReportWriter {
                     .append("</tr>\n");
         }
         if (reachedRows.isEmpty()) {
-            rows.append("<tr><td colspan=\"8\">No reachable vulnerable methods observed under this run.</td></tr>\n");
+            rows.append("<tr><td colspan=\"10\">No reachable vulnerable methods observed under this run.</td></tr>\n");
         }
 
         return """
@@ -89,6 +91,8 @@ public final class HtmlReportWriter {
                     <thead>
                       <tr>
                         <th>CVE</th>
+                        <th>Severity</th>
+                        <th>CVSS</th>
                         <th>Vulnerable library</th>
                         <th>Upgrade to</th>
                         <th>Method</th>
@@ -105,6 +109,10 @@ public final class HtmlReportWriter {
                     <p>
                       The table lists only <strong>REACHABLE</strong> methods (executed under this workload).
                       The <strong>NOT_OBSERVED</strong> count is summary-only and does not mean the issue is safe.
+                    </p>
+                    <p>
+                      <strong>Severity</strong> and <strong>CVSS</strong> come from the SCA scanner (via the watchlist)
+                      and describe advisory risk — they are not proof of exploitability at runtime.
                     </p>
                     <p>
                       <strong>Confidence</strong> is the strength of the CVE→method mapping from the watchlist
@@ -125,10 +133,14 @@ public final class HtmlReportWriter {
     }
 
     public static String consoleTable(List<MethodResult> results) {
-        String[] headers = {"CVE", "Vulnerable library", "Upgrade to", "Status", "Hits", "Method"};
+        String[] headers = {
+                "CVE", "Severity", "CVSS", "Vulnerable library", "Upgrade to", "Status", "Hits", "Method"
+        };
         List<String[]> tableRows = results.stream()
                 .map(r -> new String[]{
                         emptyAsDash(r.cve()),
+                        emptyAsDash(r.severity()),
+                        emptyAsDash(r.cvssScore()),
                         r.library(),
                         r.upgradeTo(),
                         r.status().name(),
@@ -175,12 +187,13 @@ public final class HtmlReportWriter {
     }
 
     private static String formatRow(String[] cols, int[] widths) {
+        // Right-align numeric columns: CVSS (2) and Hits (6)
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < cols.length; i++) {
             if (i > 0) {
                 sb.append(" | ");
             }
-            if (i == 4) {
+            if (i == 2 || i == 6) {
                 sb.append(String.format("%" + widths[i] + "s", cols[i]));
             } else {
                 sb.append(String.format("%-" + widths[i] + "s", cols[i]));

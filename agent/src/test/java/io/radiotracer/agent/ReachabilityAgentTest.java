@@ -39,6 +39,8 @@ class ReachabilityAgentTest {
                       "package": "test:fixture",
                       "installedVersion": "1.0",
                       "upgradeTo": "2.0",
+                      "severity": "critical",
+                      "cvssScore": 9.8,
                       "className": "io.radiotracer.agent.fixture.WatchedTarget",
                       "methodName": "touch",
                       "source": "test",
@@ -190,11 +192,13 @@ class ReachabilityAgentTest {
         var init = new Watchlist.VulnerableMethod(
                 "C", "p", "1", "2",
                 "io.radiotracer.agent.fixture.CtorTarget",
-                Watchlist.CONSTRUCTOR_NAME, null, "s", "high");
+                Watchlist.CONSTRUCTOR_NAME, null, "s", "high",
+                "", null, "");
         var named = new Watchlist.VulnerableMethod(
                 "C", "p", "1", "2",
                 "io.radiotracer.agent.fixture.CtorTarget",
-                "toString", null, "s", "high");
+                "toString", null, "s", "high",
+                "", null, "");
 
         var initMatcher = ReachabilityAgent.matcherFor(init);
         var methodMatcher = ReachabilityAgent.matcherFor(named);
