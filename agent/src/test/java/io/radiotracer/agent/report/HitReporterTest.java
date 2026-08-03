@@ -131,7 +131,7 @@ class HitReporterTest {
     }
 
     @Test
-    void multiJvmFragmentsMergeIntoTabbedHtml(@TempDir Path dir) throws Exception {
+    void multiJvmFragmentsMergeFlatAndSumHits(@TempDir Path dir) throws Exception {
         Path report = dir.resolve("multi.html");
         Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
                 "CVE-A", "g:a", "1", "2", "c.A", "foo", "()V", "s", "high",
@@ -140,23 +140,26 @@ class HitReporterTest {
                 "CVE-B", "g:b", "1", "2", "c.B", "bar", "()V", "s", "high",
                 "high", 7.0, "");
 
-        // JVM / module A
+        // JVM / module A — hits CVE-A once
         HitReporter.configure(report, List.of(a, b), "module-a");
         HitReporter.onMethodEnter("c.A", "foo", "()V", "CVE-A", "g:a", "critical", 9.8);
         HitReporter.writeFinalReport();
 
-        // Reset counters; second "JVM" with different label
+        // JVM / module B — hits CVE-A again + CVE-B
         TestAccess.resetHitReporter();
         HitReporter.configure(report, List.of(a, b), "module-b");
+        HitReporter.onMethodEnter("c.A", "foo", "()V", "CVE-A", "g:a", "critical", 9.8);
+        HitReporter.onMethodEnter("c.A", "foo", "()V", "CVE-A", "g:a", "critical", 9.8);
         HitReporter.onMethodEnter("c.B", "bar", "()V", "CVE-B", "g:b", "high", 7.0);
         HitReporter.writeFinalReport();
 
         String html = Files.readString(report);
-        assertTrue(html.contains("module-a"));
-        assertTrue(html.contains("module-b"));
         assertTrue(html.contains("CVE-A"));
         assertTrue(html.contains("CVE-B"));
-        assertTrue(html.contains("data-tab="));
+        assertTrue(html.contains("merged flat") || html.contains("hit counts summed"));
+        assertFalse(html.contains("data-tab="));
+        // CVE-A hit 1 + 2 = 3 across JVMs
+        assertTrue(html.contains(">3</td>") || html.contains(">3<"));
         assertTrue(Files.isDirectory(dir.resolve("multi.html.d")));
     }
 
@@ -174,11 +177,11 @@ class HitReporterTest {
 
         TestAccess.resetHitReporter();
         HitReporter.configure(report, List.of(m), "maven-parent");
-        // no hits — should not remove sibling module data from merged HTML
+        // no hits — empty fragment must not wipe prior REACHABLE rows
         HitReporter.writeFinalReport();
         String html = Files.readString(report);
         assertTrue(html.contains("CVE-KEEP"));
-        assertTrue(html.contains("module-with-hits"));
+        assertTrue(html.contains("REACHABLE"));
     }
 
     @Test

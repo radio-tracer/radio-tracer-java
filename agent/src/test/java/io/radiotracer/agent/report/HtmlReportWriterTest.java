@@ -44,34 +44,38 @@ class HtmlReportWriterTest {
     }
 
     @Test
-    void renderRunsBuildsTabs() {
+    void renderRunsMergesFlatAndSumsHits() {
         JvmRunSnapshot a = new JvmRunSnapshot();
         a.label = "mod-a";
         a.pid = 1;
-        a.totalHits = 1;
-        a.watchedTotal = 2;
+        a.totalHits = 2;
+        a.watchedTotal = 3;
         a.reachableCount = 1;
-        JvmRunSnapshot.ReachedRow row = new JvmRunSnapshot.ReachedRow();
-        row.cve = "CVE-1";
-        row.method = "c.A#m";
-        row.status = "REACHABLE";
-        row.hitCount = 1;
-        a.reached = List.of(row);
+        JvmRunSnapshot.ReachedRow rowA = new JvmRunSnapshot.ReachedRow();
+        rowA.cve = "CVE-1";
+        rowA.method = "c.A#m";
+        rowA.status = "REACHABLE";
+        rowA.hitCount = 2;
+        a.reached = List.of(rowA);
 
         JvmRunSnapshot b = new JvmRunSnapshot();
         b.label = "mod-b";
         b.pid = 2;
-        b.totalHits = 0;
-        b.watchedTotal = 2;
-        b.reachableCount = 0;
-        b.reached = List.of();
+        b.totalHits = 3;
+        b.watchedTotal = 3;
+        b.reachableCount = 1;
+        JvmRunSnapshot.ReachedRow rowB = new JvmRunSnapshot.ReachedRow();
+        rowB.cve = "CVE-1";
+        rowB.method = "c.A#m";
+        rowB.status = "REACHABLE";
+        rowB.hitCount = 3;
+        b.reached = List.of(rowB);
 
         String html = HtmlReportWriter.renderRuns(List.of(a, b), Instant.parse("2026-01-01T00:00:00Z"));
-        assertTrue(html.contains("mod-a"));
-        assertTrue(html.contains("mod-b"));
         assertTrue(html.contains("CVE-1"));
-        assertTrue(html.contains("data-tab="));
-        assertTrue(html.contains("JVM tabs"));
+        assertTrue(html.contains(">5</td>") || html.contains("total invocations: 5"));
+        assertFalse(html.contains("data-tab="));
+        assertTrue(html.contains("merged flat") || html.contains("hit counts summed"));
     }
 
     @Test

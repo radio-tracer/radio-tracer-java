@@ -6,7 +6,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** Builds a self-contained HTML reachability report (single- or multi-JVM tabs). */
+/** Builds a self-contained HTML reachability report (flat multi-JVM merge). */
 public final class HtmlReportWriter {
 
     private static final DateTimeFormatter LOCAL_TIME =
@@ -26,56 +26,35 @@ public final class HtmlReportWriter {
             Instant generatedAt,
             long totalHits
     ) {
-        // Legacy single-JVM API — one tab. notObservedCount is derived in renderRuns.
         return renderRuns(
                 List.of(snapshotFromLegacy(reachedRows, watchedTotal, totalHits, generatedAt)),
                 generatedAt
         );
     }
 
-    /** Multi-JVM / multi-module report: one tab per {@link JvmRunSnapshot}. */
+    /**
+     * Multi-JVM report: fragments are merged into <strong>one flat table</strong>.
+     * Same CVE+method across JVMs → hit counts summed.
+     */
     public static String renderRuns(List<JvmRunSnapshot> runs, Instant generatedAt) {
-        if (runs == null || runs.isEmpty()) {
-            runs = List.of(emptySnapshot(generatedAt));
+        if (runs == null) {
+            runs = List.of();
         }
 
-        int watched = runs.stream().mapToInt(JvmRunSnapshot::watchedTotal).max().orElse(0);
-        long totalHits = runs.stream().mapToLong(JvmRunSnapshot::totalHits).sum();
-        int reachableListed = runs.stream().mapToInt(JvmRunSnapshot::reachableCount).sum();
-        // Unique methods across tabs (best-effort)
-        long uniqueMethods = runs.stream()
-                .flatMap(r -> r.reached().stream())
-                .map(JvmRunSnapshot.ReachedRow::method)
-                .distinct()
-                .count();
-        int jvmCount = runs.size();
-
-        StringBuilder tabButtons = new StringBuilder();
-        StringBuilder panels = new StringBuilder();
-        for (int i = 0; i < runs.size(); i++) {
-            JvmRunSnapshot run = runs.get(i);
-            String id = "tab-" + i;
-            boolean active = i == 0;
-            String title = esc(run.label())
-                    + " <span class=\"badge\">" + run.reachableCount() + "</span>";
-            tabButtons.append("<button type=\"button\" class=\"tab")
-                    .append(active ? " active" : "")
-                    .append("\" data-tab=\"").append(id).append("\" role=\"tab\">")
-                    .append(title)
-                    .append("</button>\n");
-            panels.append("<div class=\"panel")
-                    .append(active ? " active" : "")
-                    .append("\" id=\"").append(id).append("\" role=\"tabpanel\">\n")
-                    .append("<p class=\"panel-meta\">pid=").append(run.pid())
-                    .append(" · hits=").append(run.totalHits())
-                    .append(" · REACHABLE=").append(run.reachableCount())
-                    .append(" · watched=").append(run.watchedTotal())
-                    .append("</p>\n")
-                    .append(tableHtml(run.reached()))
-                    .append("</div>\n");
+        List<JvmRunSnapshot.ReachedRow> merged = JvmRunSnapshot.mergeReached(runs);
+        int watched = JvmRunSnapshot.maxWatched(runs);
+        long totalHits = JvmRunSnapshot.sumTotalHits(runs);
+        // Prefer sum of row hits when fragments present (matches table); fall back to JVM totals.
+        long tableHits = merged.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
+        if (tableHits > 0) {
+            totalHits = tableHits;
         }
-
-        long notObservedHint = Math.max(0, watched - (int) uniqueMethods);
+        int reachable = merged.size();
+        long notObserved = Math.max(0, watched - reachable);
+        int jvmCount = (int) runs.stream().filter(JvmRunSnapshot::hasHits).count();
+        if (jvmCount == 0) {
+            jvmCount = runs.size();
+        }
 
         return """
                 <!DOCTYPE html>
@@ -95,15 +74,6 @@ public final class HtmlReportWriter {
                     .card .n { font-size: 1.4rem; font-weight: 700; }
                     .card.r .n { color: #b91c1c; }
                     .card.nobs .n { color: #0369a1; }
-                    .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }
-                    .tab { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px;
-                           padding: 0.4rem 0.85rem; cursor: pointer; font-size: 0.85rem; color: #334155; }
-                    .tab.active { background: #0f172a; color: #fff; border-color: #0f172a; }
-                    .tab .badge { display: inline-block; min-width: 1.25rem; margin-left: 0.25rem;
-                                 font-variant-numeric: tabular-nums; opacity: 0.9; }
-                    .panel { display: none; }
-                    .panel.active { display: block; }
-                    .panel-meta { color: #64748b; font-size: 0.85rem; margin: 0 0 0.75rem; }
                     table { width: 100%%; border-collapse: collapse; background: #fff;
                             border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
                     th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #e2e8f0;
@@ -121,23 +91,20 @@ public final class HtmlReportWriter {
                 </head>
                 <body>
                   <h1>Dynamic Reachability Report</h1>
-                  <p class="meta">Generated %s · JVMs/modules: %d · total invocations: %d · REACHABLE rows: %d · unique methods: %d</p>
+                  <p class="meta">Generated %s · JVMs merged: %d · total invocations: %d</p>
                   <div class="cards">
                     <div class="card"><div class="n">%d</div>Watched methods</div>
-                    <div class="card r"><div class="n">%d</div>REACHABLE (all tabs)</div>
-                    <div class="card nobs"><div class="n">%d</div>NOT_OBSERVED (approx)</div>
-                    <div class="card"><div class="n">%d</div>JVM tabs</div>
+                    <div class="card r"><div class="n">%d</div>REACHABLE (listed)</div>
+                    <div class="card nobs"><div class="n">%d</div>NOT_OBSERVED (hidden)</div>
                   </div>
-                  <div class="tabs" role="tablist">
-                %s  </div>
                 %s  <div class="notes">
                     <p>
-                      Each <strong>tab</strong> is one JVM (typically one Maven/Gradle module test process).
-                      Labels come from agent <code>label=</code>, system properties, Maven <code>basedir</code>,
-                      or <code>user.dir</code>. Fragments under <code>*.html.d/</code> are merged into this file.
+                      The table lists only <strong>REACHABLE</strong> methods (executed under this workload).
+                      Multi-module / multi-JVM runs are <strong>merged flat</strong>: the same CVE+method
+                      seen in several processes has its <strong>hit counts summed</strong>.
                     </p>
                     <p>
-                      The table lists only <strong>REACHABLE</strong> methods for that JVM.
+                      Per-JVM fragments live next to this file under <code>*.html.d/</code>.
                       <strong>NOT_OBSERVED</strong> is summary-only and does not mean the issue is safe.
                     </p>
                     <p>
@@ -145,46 +112,17 @@ public final class HtmlReportWriter {
                       is CVE→method mapping quality — neither is exploitability.
                     </p>
                   </div>
-                  <script>
-                    (function () {
-                      var tabs = document.querySelectorAll('.tab');
-                      var panels = document.querySelectorAll('.panel');
-                      tabs.forEach(function (btn) {
-                        btn.addEventListener('click', function () {
-                          var id = btn.getAttribute('data-tab');
-                          tabs.forEach(function (t) { t.classList.toggle('active', t === btn); });
-                          panels.forEach(function (p) { p.classList.toggle('active', p.id === id); });
-                        });
-                      });
-                    })();
-                  </script>
                 </body>
                 </html>
                 """.formatted(
                 esc(formatGeneratedAt(generatedAt)),
-                jvmCount,
+                Math.max(jvmCount, 1),
                 totalHits,
-                reachableListed,
-                uniqueMethods,
                 watched,
-                reachableListed,
-                notObservedHint,
-                jvmCount,
-                tabButtons,
-                panels
+                reachable,
+                notObserved,
+                tableHtml(merged)
         );
-    }
-
-    private static JvmRunSnapshot emptySnapshot(Instant generatedAt) {
-        JvmRunSnapshot s = new JvmRunSnapshot();
-        s.label = "run";
-        s.pid = RunLabel.currentPid();
-        s.generatedAt = generatedAt.toString();
-        s.totalHits = 0;
-        s.watchedTotal = 0;
-        s.reachableCount = 0;
-        s.reached = List.of();
-        return s;
     }
 
     private static JvmRunSnapshot snapshotFromLegacy(
@@ -243,7 +181,7 @@ public final class HtmlReportWriter {
                     .append("</tr>\n");
         }
         if (reachedRows.isEmpty()) {
-            rows.append("<tr><td colspan=\"10\">No reachable vulnerable methods observed under this JVM.</td></tr>\n");
+            rows.append("<tr><td colspan=\"10\">No reachable vulnerable methods observed under this run.</td></tr>\n");
         }
         rows.append("  </tbody>\n</table>\n");
         return rows.toString();

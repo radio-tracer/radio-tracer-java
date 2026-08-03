@@ -53,6 +53,47 @@ class JvmRunSnapshotTest {
     }
 
     @Test
+    void mergeReachedSumsHitsForSameCveAndMethod() {
+        JvmRunSnapshot.ReachedRow r1 = new JvmRunSnapshot.ReachedRow();
+        r1.cve = "CVE-1";
+        r1.method = "c.A#m";
+        r1.hitCount = 2;
+        r1.severity = "high";
+        JvmRunSnapshot.ReachedRow r2 = new JvmRunSnapshot.ReachedRow();
+        r2.cve = "CVE-1";
+        r2.method = "c.A#m";
+        r2.hitCount = 3;
+        JvmRunSnapshot.ReachedRow r3 = new JvmRunSnapshot.ReachedRow();
+        r3.cve = "CVE-2";
+        r3.method = "c.B#n";
+        r3.hitCount = 1;
+
+        JvmRunSnapshot a = new JvmRunSnapshot();
+        a.reached = List.of(r1);
+        a.totalHits = 2;
+        a.watchedTotal = 5;
+        JvmRunSnapshot b = new JvmRunSnapshot();
+        b.reached = List.of(r2, r3);
+        b.totalHits = 4;
+        b.watchedTotal = 5;
+
+        List<JvmRunSnapshot.ReachedRow> merged = JvmRunSnapshot.mergeReached(List.of(a, b));
+        assertEquals(2, merged.size());
+        JvmRunSnapshot.ReachedRow cve1 = merged.stream()
+                .filter(r -> "CVE-1".equals(r.cve()))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(5, cve1.hitCount());
+        assertEquals("high", cve1.severity());
+        assertEquals(0, JvmRunSnapshot.mergeReached(null).size());
+        assertEquals(0, JvmRunSnapshot.mergeReached(List.of()).size());
+        assertEquals(6, JvmRunSnapshot.sumTotalHits(List.of(a, b)));
+        assertEquals(5, JvmRunSnapshot.maxWatched(List.of(a, b)));
+        assertEquals(0, JvmRunSnapshot.sumTotalHits(null));
+        assertEquals(0, JvmRunSnapshot.maxWatched(null));
+    }
+
+    @Test
     void loadAllSkipsBadAndSorts(@TempDir Path dir) throws Exception {
         assertTrue(JvmRunSnapshot.loadAll(dir.resolve("missing")).isEmpty());
         assertTrue(JvmRunSnapshot.loadAll(null).isEmpty());

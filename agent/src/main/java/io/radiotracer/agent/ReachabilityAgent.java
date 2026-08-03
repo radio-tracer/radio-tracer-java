@@ -31,7 +31,8 @@ import java.util.Locale;
  *      -cp app.jar:deps/* com.example.Main
  * </pre>
  * Multi-module: each JVM writes {@code report.html.d/&lt;label&gt;-&lt;pid&gt;.json} and merges
- * a tabbed HTML report. Label defaults to Maven {@code basedir} / {@code user.dir} leaf name.
+ * a flat HTML report (hit counts summed for the same CVE+method). Label defaults to Maven
+ * {@code basedir} / {@code user.dir} leaf name.
  */
 public final class ReachabilityAgent {
 

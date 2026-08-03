@@ -12,7 +12,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One JVM's reachability result, persisted so multi-module runs can merge into one HTML report.
@@ -109,6 +111,63 @@ public final class JvmRunSnapshot {
                 .comparing((JvmRunSnapshot s) -> RunLabel.normalizeKey(s.label()))
                 .thenComparingLong(JvmRunSnapshot::pid));
         return out;
+    }
+
+    /**
+     * Flat union of REACHABLE rows across JVMs.
+     * Same CVE + method → hit counts are summed; first-seen metadata is kept.
+     */
+    public static List<ReachedRow> mergeReached(List<JvmRunSnapshot> runs) {
+        if (runs == null || runs.isEmpty()) {
+            return List.of();
+        }
+        Map<String, ReachedRow> byKey = new LinkedHashMap<>();
+        for (JvmRunSnapshot run : runs) {
+            for (ReachedRow row : run.reached()) {
+                String key = row.cve() + "\0" + row.method();
+                ReachedRow existing = byKey.get(key);
+                if (existing == null) {
+                    byKey.put(key, copyRow(row));
+                } else {
+                    existing.hitCount = existing.hitCount + row.hitCount;
+                }
+            }
+        }
+        List<ReachedRow> merged = new ArrayList<>(byKey.values());
+        merged.sort(Comparator
+                .comparing(ReachedRow::cve)
+                .thenComparing(ReachedRow::method));
+        return merged;
+    }
+
+    /** Sum of per-JVM invocation totals (for summary cards). */
+    public static long sumTotalHits(List<JvmRunSnapshot> runs) {
+        if (runs == null) {
+            return 0;
+        }
+        return runs.stream().mapToLong(JvmRunSnapshot::totalHits).sum();
+    }
+
+    public static int maxWatched(List<JvmRunSnapshot> runs) {
+        if (runs == null || runs.isEmpty()) {
+            return 0;
+        }
+        return runs.stream().mapToInt(JvmRunSnapshot::watchedTotal).max().orElse(0);
+    }
+
+    private static ReachedRow copyRow(ReachedRow src) {
+        ReachedRow r = new ReachedRow();
+        r.cve = src.cve();
+        r.severity = src.severity();
+        r.cvssScore = src.cvssScore();
+        r.library = src.library();
+        r.upgradeTo = src.upgradeTo();
+        r.method = src.method();
+        r.status = src.status();
+        r.hitCount = src.hitCount();
+        r.confidence = src.confidence();
+        r.source = src.source();
+        return r;
     }
 
     public String label() {

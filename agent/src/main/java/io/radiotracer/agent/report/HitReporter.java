@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-
 /**
  * Collects runtime hits for watched methods and writes the final HTML report
  * (plus a console summary table) on shutdown.
@@ -207,14 +205,8 @@ public final class HitReporter {
                         + " (label=" + label + ", hits=" + total + ")");
 
                 List<JvmRunSnapshot> all = JvmRunSnapshot.loadAll(fragmentsDir);
-                // Prefer tabs that observed hits when any exist (drops empty Maven-parent noise).
-                List<JvmRunSnapshot> withHits = all.stream()
-                        .filter(JvmRunSnapshot::hasHits)
-                        .collect(Collectors.toList());
-                if (!withHits.isEmpty()) {
-                    all = withHits;
-                }
-
+                // Empty JVM fragments contribute no rows; keep them for hit-sum via totalHits only
+                // when they had hits. Flat merge sums CVE+method hit counts across all fragments.
                 String html = HtmlReportWriter.renderRuns(all, now);
                 Path parent = htmlPath.getParent();
                 if (parent != null) {
@@ -227,11 +219,11 @@ public final class HitReporter {
                         StandardOpenOption.CREATE,
                         StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);
-                long mergedHits = all.stream().mapToLong(JvmRunSnapshot::totalHits).sum();
-                int mergedReachable = all.stream().mapToInt(JvmRunSnapshot::reachableCount).sum();
+                var mergedRows = JvmRunSnapshot.mergeReached(all);
+                long mergedHits = mergedRows.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
                 out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
-                        + " (tabs=" + all.size()
-                        + ", reachable_rows=" + mergedReachable
+                        + " (jvms=" + all.size()
+                        + ", reachable_rows=" + mergedRows.size()
                         + ", total_hits=" + mergedHits + ")");
                 out.flush();
             }
