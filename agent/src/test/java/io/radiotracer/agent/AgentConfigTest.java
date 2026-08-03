@@ -33,11 +33,24 @@ class AgentConfigTest {
         Path methods = dir.resolve("m.json");
         Files.writeString(methods, "{}");
         Path report = dir.resolve("report.html");
-        String args = "methods=" + methods + ",report=" + report + ",verbose=true";
+        String args = "methods=" + methods + ",report=" + report + ",verbose=true,label=todolist-core";
         ReachabilityAgent.AgentConfig cfg = ReachabilityAgent.AgentConfig.parse(args);
         assertEquals(methods, cfg.methodsPath());
         assertEquals(report, cfg.reportPath());
         assertTrue(cfg.verbose());
+        assertEquals("todolist-core", cfg.label());
+    }
+
+    @Test
+    void parseRunIdAndModuleAliases(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("m.json");
+        Files.writeString(methods, "{}");
+        assertEquals("svc", ReachabilityAgent.AgentConfig.parse(
+                "methods=" + methods + ",runId=svc").label());
+        assertEquals("mod", ReachabilityAgent.AgentConfig.parse(
+                "methods=" + methods + ",module=mod").label());
+        assertEquals("", ReachabilityAgent.AgentConfig.parse(
+                "methods=" + methods + ",label=").label());
     }
 
     @Test

@@ -77,6 +77,7 @@ public final class TestAccess {
         ((ConcurrentHashMap<?, ?>) getStaticField(hr, "FIRST_SEEN")).clear();
         setStaticField(hr, "reportPath", null);
         setStaticField(hr, "watchlist", java.util.List.of());
+        setStaticField(hr, "runLabel", "");
         setStaticField(hr, "out", System.err);
     }
 

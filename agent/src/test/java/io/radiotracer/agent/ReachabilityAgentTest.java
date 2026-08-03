@@ -60,7 +60,7 @@ class ReachabilityAgentTest {
         Path report = dir.resolve("out.html");
         Instrumentation inst = ByteBuddyAgent.install();
 
-        String args = "methods=" + methods + ",report=" + report + ",verbose=true";
+        String args = "methods=" + methods + ",report=" + report + ",verbose=true,label=demo-fixture";
         assertDoesNotThrow(() -> ReachabilityAgent.premain(args, inst));
 
         Class<?> target = Class.forName("io.radiotracer.agent.fixture.WatchedTarget");
@@ -75,6 +75,17 @@ class ReachabilityAgentTest {
     void agentmainWithInvalidArgsDoesNotThrow() {
         Instrumentation inst = ByteBuddyAgent.install();
         assertDoesNotThrow(() -> ReachabilityAgent.agentmain("methods=/no/such/file.json", inst));
+    }
+
+    @Test
+    void premainWithEmptyLabelUsesAuto(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("m.json");
+        Files.writeString(methods, """
+                {"methods":[{"className":"java.lang.String","methodName":"length","cve":"C","package":"j"}]}
+                """);
+        Instrumentation inst = ByteBuddyAgent.install();
+        assertDoesNotThrow(() ->
+                ReachabilityAgent.premain("methods=" + methods + ",label=", inst));
     }
 
     @Test

@@ -121,6 +121,7 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 | Optional JVM method `descriptor` | Yes (narrows overloads) |
 | First-hit `[REACHABLE]` on stderr + stack | Yes |
 | Severity / CVSS in logs + HTML/console report | Yes (from watchlist) |
+| Multi-module / multi-JVM HTML (tabs) | Yes (fragments + merge) |
 | Force-push / rewrite of dependency JARs | No — pure runtime weave |
 
 **Watchlist / SCA prep**
@@ -144,17 +145,24 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 ```bash
 mvn -q test package
 
-java -javaagent:agent/target/radio-tracer-agent-0.1.0-SNAPSHOT.jar=\
+java -javaagent:agent/target/radio-tracer-agent-0.1.0.jar=\
 methods=examples/methods.json,report=/tmp/radio-tracer-report.html \
-  -cp "demo-app/target/demo-app-0.1.0-SNAPSHOT.jar:demo-app/target/deps/*" \
+  -cp "demo-app/target/demo-app-0.1.0.jar:demo-app/target/deps/*" \
   com.example.app.DemoApp
 ```
 
 | Arg | Meaning |
 |-----|---------|
 | `methods=` | Watchlist JSON (**required**) |
-| `report=` | HTML path (optional; written on JVM exit) |
+| `report=` | HTML path (optional; written on JVM exit). Multi-JVM: fragments in `report.html.d/`, merged tabbed HTML |
+| `label=` / `runId=` / `module=` | Tab name for this JVM (optional; else Maven `basedir` / `user.dir` / pid) |
 | `verbose=true` | Log which classes get instrumented |
+
+**Multi-module Maven (Surefire):** attach the agent via `argLine` (not only `JAVA_TOOL_OPTIONS` on the parent) and point every module at the **same** `report=` path. Each fork writes a fragment and merges tabs:
+
+```text
+-javaagent:agent.jar=methods=methods.json,report=${maven.multiModuleProjectDirectory}/rt-report.html,label=${project.artifactId}
+```
 
 Samples: [`examples/methods.json`](examples/methods.json) · [`examples/sample-report.html`](examples/sample-report.html)
 

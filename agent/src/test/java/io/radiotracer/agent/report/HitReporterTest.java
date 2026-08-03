@@ -115,16 +115,70 @@ class HitReporterTest {
     }
 
     @Test
-    void writeFinalReportSkipsEmptyOverwriteOfExisting(@TempDir Path dir) throws Exception {
-        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
-                "CVE-KEEP", "g:a", "1", "2", "c.K", "m", null, "", "",
-                "", null, "");
-        Path report = dir.resolve("keep.html");
-        Files.writeString(report, "GOOD-REPORT-WITH-HITS");
-        HitReporter.configure(report, List.of(m));
-        // no onMethodEnter → total hits 0
+    void ensureHtmlPathAddsExtension() {
+        Path p = (Path) TestAccess.invokeStatic(
+                HitReporter.class, "ensureHtmlPath",
+                new Class<?>[]{Path.class}, Path.of("/tmp/out.report"));
+        assertEquals("out.html", p.getFileName().toString());
+        p = (Path) TestAccess.invokeStatic(
+                HitReporter.class, "ensureHtmlPath",
+                new Class<?>[]{Path.class}, Path.of("/tmp/bare"));
+        assertEquals("bare.html", p.getFileName().toString());
+        p = (Path) TestAccess.invokeStatic(
+                HitReporter.class, "fragmentsDirFor",
+                new Class<?>[]{Path.class}, Path.of("/tmp/x.html"));
+        assertEquals("x.html.d", p.getFileName().toString());
+    }
+
+    @Test
+    void multiJvmFragmentsMergeIntoTabbedHtml(@TempDir Path dir) throws Exception {
+        Path report = dir.resolve("multi.html");
+        Watchlist.VulnerableMethod a = new Watchlist.VulnerableMethod(
+                "CVE-A", "g:a", "1", "2", "c.A", "foo", "()V", "s", "high",
+                "critical", 9.8, "");
+        Watchlist.VulnerableMethod b = new Watchlist.VulnerableMethod(
+                "CVE-B", "g:b", "1", "2", "c.B", "bar", "()V", "s", "high",
+                "high", 7.0, "");
+
+        // JVM / module A
+        HitReporter.configure(report, List.of(a, b), "module-a");
+        HitReporter.onMethodEnter("c.A", "foo", "()V", "CVE-A", "g:a", "critical", 9.8);
         HitReporter.writeFinalReport();
-        assertEquals("GOOD-REPORT-WITH-HITS", Files.readString(report));
+
+        // Reset counters; second "JVM" with different label
+        TestAccess.resetHitReporter();
+        HitReporter.configure(report, List.of(a, b), "module-b");
+        HitReporter.onMethodEnter("c.B", "bar", "()V", "CVE-B", "g:b", "high", 7.0);
+        HitReporter.writeFinalReport();
+
+        String html = Files.readString(report);
+        assertTrue(html.contains("module-a"));
+        assertTrue(html.contains("module-b"));
+        assertTrue(html.contains("CVE-A"));
+        assertTrue(html.contains("CVE-B"));
+        assertTrue(html.contains("data-tab="));
+        assertTrue(Files.isDirectory(dir.resolve("multi.html.d")));
+    }
+
+    @Test
+    void emptyJvmDoesNotClobberSiblingModuleHits(@TempDir Path dir) throws Exception {
+        Path report = dir.resolve("keep.html");
+        Watchlist.VulnerableMethod m = new Watchlist.VulnerableMethod(
+                "CVE-KEEP", "g:a", "1", "2", "c.K", "m", "()V", "", "",
+                "high", 8.0, "");
+
+        HitReporter.configure(report, List.of(m), "module-with-hits");
+        HitReporter.onMethodEnter("c.K", "m", "()V", "CVE-KEEP", "g:a", "high", 8.0);
+        HitReporter.writeFinalReport();
+        assertTrue(Files.readString(report).contains("CVE-KEEP"));
+
+        TestAccess.resetHitReporter();
+        HitReporter.configure(report, List.of(m), "maven-parent");
+        // no hits — should not remove sibling module data from merged HTML
+        HitReporter.writeFinalReport();
+        String html = Files.readString(report);
+        assertTrue(html.contains("CVE-KEEP"));
+        assertTrue(html.contains("module-with-hits"));
     }
 
     @Test

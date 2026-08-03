@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Dynamic Reachability Report</title>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #0f172a; }
+    body { margin: 2rem; background: #f8fafc; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    .meta { color: #64748b; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+            padding: 0.75rem 1rem; min-width: 8rem; }
+    .card .n { font-size: 1.4rem; font-weight: 700; }
+    .card.r .n { color: #b91c1c; }
+    .card.nobs .n { color: #0369a1; }
+    table { width: 100%; border-collapse: collapse; background: #fff;
+            border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid #e2e8f0;
+             font-size: 0.9rem; vertical-align: top; }
+    th { background: #f1f5f9; font-weight: 600; }
+    tr.reachable { background: #fef2f2; }
+    td.status { font-weight: 600; white-space: nowrap; color: #b91c1c; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    code { font-size: 0.8rem; word-break: break-all; }
+    .notes { margin-top: 1.25rem; color: #64748b; font-size: 0.85rem;
+             max-width: 56rem; line-height: 1.5; }
+    .notes p { margin: 0 0 0.65rem; }
+    .notes p:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <h1>Dynamic Reachability Report</h1>
+  <p class="meta">Generated 2026-08-03 03:03:29 America/Toronto (EDT, UTC-04:00) · total method invocations observed: 3</p>
+  <div class="cards">
+    <div class="card"><div class="n">5</div>Watched methods</div>
+    <div class="card r"><div class="n">3</div>REACHABLE (listed)</div>
+    <div class="card nobs"><div class="n">2</div>NOT_OBSERVED (hidden)</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>CVE</th>
+        <th>Severity</th>
+        <th>CVSS</th>
+        <th>Vulnerable library</th>
+        <th>Upgrade to</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>Hits</th>
+        <th>Confidence</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr class="reachable"><td>CVE-2023-DEMO-0001</td><td>critical</td><td class="num">9.8</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.DeserUtil#deserialize(Ljava/lang/String;)Ljava/lang/Object;</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>high</td><td>mock-fix-commit</td></tr>
+<tr class="reachable"><td>CVE-2023-DEMO-0002</td><td>high</td><td class="num">7.5</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.3.1</td><td><code>com.example.vulnlib.CryptoHelper#weakDecrypt</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>medium</td><td>mock-advisory-listing</td></tr>
+<tr class="reachable"><td>CVE-2023-DEMO-0003</td><td>medium</td><td class="num">5.3</td><td>io.radiotracer:demo-lib@1.0.0</td><td>1.2.0</td><td><code>com.example.vulnlib.CryptoHelper#version</code></td><td class="status">REACHABLE</td><td class="num">1</td><td>low</td><td>mock-false-lead</td></tr>
+    </tbody>
+  </table>
+  <div class="notes">
+    <p>
+      The table lists only <strong>REACHABLE</strong> methods (executed under this workload).
+      The <strong>NOT_OBSERVED</strong> count is summary-only and does not mean the issue is safe.
+    </p>
+    <p>
+      <strong>Severity</strong> and <strong>CVSS</strong> come from the SCA scanner (via the watchlist)
+      and describe advisory risk — they are not proof of exploitability at runtime.
+    </p>
+    <p>
+      <strong>Confidence</strong> is the strength of the CVE→method mapping from the watchlist
+      (for example high = clear fix-commit match, medium = advisory inference, low = weak or speculative).
+      It is not severity and not a measure of exploitability.
+    </p>
+  </div>
+</body>
+</html>

@@ -5,6 +5,12 @@ All notable changes to **radio-tracer-java** are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Multi-module / multi-JVM reports:** each process writes `report.html.d/<label>-<pid>.json` and merges a **tabbed** HTML report (label from `label=` / `runId=` / `module=`, else Maven `basedir` / `user.dir`)
+
 ## [0.1.0] — 2026-08-03
 
 ### First public preview
