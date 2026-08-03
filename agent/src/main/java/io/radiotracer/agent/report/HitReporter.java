@@ -3,6 +3,8 @@ package io.radiotracer.agent.report;
 import io.radiotracer.agent.Watchlist;
 
 import java.io.PrintStream;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +18,10 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Collects runtime hits for watched methods and writes the final HTML report
  * (plus a console summary table) on shutdown.
+ * <p>
+ * Multi-module / multi-JVM: each process writes a JSON fragment under
+ * {@code report.html.d/}, then merges all fragments into one flat HTML table
+ * (hit counts summed for the same CVE+method) under a file lock.
  */
 public final class HitReporter {
 
@@ -26,13 +32,19 @@ public final class HitReporter {
     private static volatile PrintStream out = System.err;
     private static volatile Path reportPath;
     private static volatile List<Watchlist.VulnerableMethod> watchlist = List.of();
+    private static volatile String runLabel = "";
 
     private HitReporter() {}
 
     public static void configure(Path report, List<Watchlist.VulnerableMethod> methods) {
+        configure(report, methods, null);
+    }
+
+    public static void configure(Path report, List<Watchlist.VulnerableMethod> methods, String label) {
         out = System.err;
         reportPath = report;
         watchlist = methods == null ? List.of() : List.copyOf(methods);
+        runLabel = RunLabel.resolve(label);
     }
 
     public static void onMethodEnter(
@@ -73,6 +85,7 @@ public final class HitReporter {
                     .append(" cvss=").append(formatCvss(cvssScore))
                     .append(" package=").append(empty(packageCoord, "?"))
                     .append(" method=").append(key)
+                    .append(" label=").append(RunLabel.display(runLabel))
                     .append(" thread=").append(thread);
             out.println(line);
             out.flush();
@@ -147,10 +160,14 @@ public final class HitReporter {
             long total = TOTAL_HITS.get();
             long reachable = reached.size();
             long notObserved = results.size() - reachable;
+            String label = RunLabel.display(runLabel);
+            long pid = RunLabel.currentPid();
 
             out.println();
             out.println("[radio-tracer] ===== Reachability summary =====");
-            out.println("[radio-tracer] watched=" + results.size()
+            out.println("[radio-tracer] label=" + label
+                    + " pid=" + pid
+                    + " watched=" + results.size()
                     + " reachable=" + reachable
                     + " not_observed=" + notObserved
                     + " total_hits=" + total
@@ -164,39 +181,59 @@ public final class HitReporter {
             out.flush();
 
             Path path = reportPath;
-            if (path != null) {
-                Path htmlPath = ensureHtmlPath(path);
-                // When JAVA_TOOL_OPTIONS attaches the agent to Maven *and* Surefire forks,
-                // each JVM writes the same report path on exit. The parent Maven JVM often
-                // has 0 hits and would clobber a good Surefire report — skip that.
-                if (total == 0 && Files.isRegularFile(htmlPath)) {
-                    out.println("[radio-tracer] skipping empty HTML overwrite (keeping existing report): "
-                            + htmlPath.toAbsolutePath());
-                    out.flush();
-                } else {
-                    String html = HtmlReportWriter.render(
-                            reached, results.size(), notObserved, Instant.now(), total);
-                    Path parent = htmlPath.getParent();
-                    if (parent != null) {
-                        Files.createDirectories(parent);
-                    }
-                    // Explicit create/truncate so a prior run is always replaced when we do write.
-                    Files.writeString(
-                            htmlPath,
-                            html,
-                            StandardCharsets.UTF_8,
-                            StandardOpenOption.CREATE,
-                            StandardOpenOption.TRUNCATE_EXISTING,
-                            StandardOpenOption.WRITE);
-                    out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
-                            + " (reachable=" + reachable + ", total_hits=" + total + ")");
-                    out.flush();
+            if (path == null) {
+                return;
+            }
+
+            Path htmlPath = ensureHtmlPath(path);
+            Path fragmentsDir = fragmentsDirFor(htmlPath);
+            Path lockPath = fragmentsDir.resolve(".merge.lock");
+            Instant now = Instant.now();
+            JvmRunSnapshot mine = JvmRunSnapshot.fromResults(label, pid, results, total, now);
+
+            // Always persist this JVM's fragment (including 0 hits) under the lock, then merge.
+            Files.createDirectories(fragmentsDir);
+            try (FileChannel channel = FileChannel.open(
+                    lockPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.WRITE);
+                 FileLock lock = channel.lock()) {
+
+                Path fragmentPath = fragmentsDir.resolve(
+                        RunLabel.sanitize(label) + "-" + pid + ".json");
+                mine.write(fragmentPath);
+                out.println("[radio-tracer] fragment written " + fragmentPath.toAbsolutePath()
+                        + " (label=" + label + ", hits=" + total + ")");
+
+                List<JvmRunSnapshot> all = JvmRunSnapshot.loadAll(fragmentsDir);
+                String html = HtmlReportWriter.renderMerged(all, now);
+                Path parent = htmlPath.getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
                 }
+                Files.writeString(
+                        htmlPath,
+                        html,
+                        StandardCharsets.UTF_8,
+                        StandardOpenOption.CREATE,
+                        StandardOpenOption.TRUNCATE_EXISTING,
+                        StandardOpenOption.WRITE);
+                var mergedRows = JvmRunSnapshot.mergeReached(all);
+                long mergedHits = mergedRows.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
+                out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
+                        + " (jvms=" + all.size()
+                        + ", reachable_rows=" + mergedRows.size()
+                        + ", total_hits=" + mergedHits + ")");
+                out.flush();
             }
         } catch (Throwable t) {
             System.err.println("[radio-tracer] failed to write report: " + t);
             t.printStackTrace(System.err);
         }
+    }
+
+    static Path fragmentsDirFor(Path htmlPath) {
+        return htmlPath.resolveSibling(htmlPath.getFileName().toString() + ".d");
     }
 
     private static Path ensureHtmlPath(Path path) {

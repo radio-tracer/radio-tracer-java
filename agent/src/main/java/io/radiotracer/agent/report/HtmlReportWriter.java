@@ -6,7 +6,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-/** Builds a self-contained HTML reachability report. */
+/** Builds a self-contained HTML reachability report (flat multi-JVM merge). */
 public final class HtmlReportWriter {
 
     private static final DateTimeFormatter LOCAL_TIME =
@@ -15,9 +15,11 @@ public final class HtmlReportWriter {
     private HtmlReportWriter() {}
 
     /**
-     * @param reachedRows only REACHABLE rows (printed in the table)
+     * Single-JVM report (tests / simple runs).
+     *
+     * @param reachedRows only REACHABLE rows
      * @param watchedTotal full watchlist size
-     * @param notObservedCount watched methods never hit (summary only, not listed)
+     * @param notObservedCount unused (derived from watched − reachable for multi-merge path)
      */
     public static String render(
             List<MethodResult> reachedRows,
@@ -26,25 +28,34 @@ public final class HtmlReportWriter {
             Instant generatedAt,
             long totalHits
     ) {
-        int reachable = reachedRows.size();
-        StringBuilder rows = new StringBuilder();
-        for (MethodResult r : reachedRows) {
-            rows.append("<tr class=\"reachable\">")
-                    .append("<td>").append(esc(r.cve())).append("</td>")
-                    .append("<td>").append(esc(emptyAsDash(r.severity()))).append("</td>")
-                    .append("<td class=\"num\">").append(esc(emptyAsDash(r.cvssScore()))).append("</td>")
-                    .append("<td>").append(esc(r.library())).append("</td>")
-                    .append("<td>").append(esc(r.upgradeTo())).append("</td>")
-                    .append("<td><code>").append(esc(r.method().displayMethod())).append("</code></td>")
-                    .append("<td class=\"status\">").append(r.status().name()).append("</td>")
-                    .append("<td class=\"num\">").append(r.hitCount()).append("</td>")
-                    .append("<td>").append(esc(emptyAsDash(r.method().confidence()))).append("</td>")
-                    .append("<td>").append(esc(emptyAsDash(r.method().source()))).append("</td>")
-                    .append("</tr>\n");
+        JvmRunSnapshot single = new JvmRunSnapshot();
+        single.label = "run";
+        single.pid = RunLabel.currentPid();
+        single.generatedAt = generatedAt.toString();
+        single.totalHits = totalHits;
+        single.watchedTotal = watchedTotal;
+        single.reachableCount = reachedRows.size();
+        single.reached = reachedRows.stream()
+                .map(r -> JvmRunSnapshot.ReachedRow.from(r, r.method()))
+                .toList();
+        return renderMerged(List.of(single), generatedAt);
+    }
+
+    /**
+     * Multi-JVM report: fragments merged into one flat table.
+     * Same CVE+method across JVMs → hit counts summed.
+     */
+    public static String renderMerged(List<JvmRunSnapshot> runs, Instant generatedAt) {
+        if (runs == null) {
+            runs = List.of();
         }
-        if (reachedRows.isEmpty()) {
-            rows.append("<tr><td colspan=\"10\">No reachable vulnerable methods observed under this run.</td></tr>\n");
-        }
+
+        List<JvmRunSnapshot.ReachedRow> merged = JvmRunSnapshot.mergeReached(runs);
+        int watched = JvmRunSnapshot.maxWatched(runs);
+        long totalHits = merged.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
+        int reachable = merged.size();
+        long notObserved = Math.max(0, watched - reachable);
+        int jvmCount = Math.max(1, runs.size());
 
         return """
                 <!DOCTYPE html>
@@ -81,55 +92,79 @@ public final class HtmlReportWriter {
                 </head>
                 <body>
                   <h1>Dynamic Reachability Report</h1>
-                  <p class="meta">Generated %s · total method invocations observed: %d</p>
+                  <p class="meta">Generated %s · JVMs merged: %d · total invocations: %d</p>
                   <div class="cards">
                     <div class="card"><div class="n">%d</div>Watched methods</div>
                     <div class="card r"><div class="n">%d</div>REACHABLE (listed)</div>
                     <div class="card nobs"><div class="n">%d</div>NOT_OBSERVED (hidden)</div>
                   </div>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>CVE</th>
-                        <th>Severity</th>
-                        <th>CVSS</th>
-                        <th>Vulnerable library</th>
-                        <th>Upgrade to</th>
-                        <th>Method</th>
-                        <th>Status</th>
-                        <th>Hits</th>
-                        <th>Confidence</th>
-                        <th>Source</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                %s    </tbody>
-                  </table>
-                  <div class="notes">
+                %s  <div class="notes">
                     <p>
                       The table lists only <strong>REACHABLE</strong> methods (executed under this workload).
-                      The <strong>NOT_OBSERVED</strong> count is summary-only and does not mean the issue is safe.
+                      Multi-module / multi-JVM runs are <strong>merged flat</strong>: the same CVE+method
+                      seen in several processes has its <strong>hit counts summed</strong>.
                     </p>
                     <p>
-                      <strong>Severity</strong> and <strong>CVSS</strong> come from the SCA scanner (via the watchlist)
-                      and describe advisory risk — they are not proof of exploitability at runtime.
+                      Per-JVM fragments live next to this file under <code>*.html.d/</code>.
+                      <strong>NOT_OBSERVED</strong> is summary-only and does not mean the issue is safe.
                     </p>
                     <p>
-                      <strong>Confidence</strong> is the strength of the CVE→method mapping from the watchlist
-                      (for example high = clear fix-commit match, medium = advisory inference, low = weak or speculative).
-                      It is not severity and not a measure of exploitability.
+                      <strong>Severity</strong> / <strong>CVSS</strong> are scanner risk; <strong>Confidence</strong>
+                      is CVE→method mapping quality — neither is exploitability.
                     </p>
                   </div>
                 </body>
                 </html>
                 """.formatted(
                 esc(formatGeneratedAt(generatedAt)),
+                jvmCount,
                 totalHits,
-                watchedTotal,
+                watched,
                 reachable,
-                notObservedCount,
-                rows
+                notObserved,
+                tableHtml(merged)
         );
+    }
+
+    private static String tableHtml(List<JvmRunSnapshot.ReachedRow> reachedRows) {
+        StringBuilder rows = new StringBuilder();
+        rows.append("""
+                <table>
+                  <thead>
+                    <tr>
+                      <th>CVE</th>
+                      <th>Severity</th>
+                      <th>CVSS</th>
+                      <th>Vulnerable library</th>
+                      <th>Upgrade to</th>
+                      <th>Method</th>
+                      <th>Status</th>
+                      <th>Hits</th>
+                      <th>Confidence</th>
+                      <th>Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                """);
+        for (JvmRunSnapshot.ReachedRow r : reachedRows) {
+            rows.append("<tr class=\"reachable\">")
+                    .append("<td>").append(esc(r.cve())).append("</td>")
+                    .append("<td>").append(esc(emptyAsDash(r.severity()))).append("</td>")
+                    .append("<td class=\"num\">").append(esc(emptyAsDash(r.cvssScore()))).append("</td>")
+                    .append("<td>").append(esc(r.library())).append("</td>")
+                    .append("<td>").append(esc(r.upgradeTo())).append("</td>")
+                    .append("<td><code>").append(esc(r.method())).append("</code></td>")
+                    .append("<td class=\"status\">").append(esc(r.status())).append("</td>")
+                    .append("<td class=\"num\">").append(r.hitCount()).append("</td>")
+                    .append("<td>").append(esc(emptyAsDash(r.confidence()))).append("</td>")
+                    .append("<td>").append(esc(emptyAsDash(r.source()))).append("</td>")
+                    .append("</tr>\n");
+        }
+        if (reachedRows.isEmpty()) {
+            rows.append("<tr><td colspan=\"10\">No reachable vulnerable methods observed under this run.</td></tr>\n");
+        }
+        rows.append("  </tbody>\n</table>\n");
+        return rows.toString();
     }
 
     public static String consoleTable(List<MethodResult> results) {
@@ -213,7 +248,7 @@ public final class HtmlReportWriter {
         return sb.toString();
     }
 
-    private static String emptyAsDash(String s) {
+    static String emptyAsDash(String s) {
         return s == null || s.isEmpty() ? "—" : s;
     }
 

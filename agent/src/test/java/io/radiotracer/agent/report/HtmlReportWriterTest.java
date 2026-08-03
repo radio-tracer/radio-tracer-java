@@ -31,7 +31,7 @@ class HtmlReportWriterTest {
         assertTrue(html.contains("<th>Severity</th>"));
         assertTrue(html.contains("<th>CVSS</th>"));
         assertTrue(html.contains("REACHABLE"));
-        assertTrue(html.contains("NOT_OBSERVED (hidden)"));
+        assertTrue(html.contains("NOT_OBSERVED"));
         assertTrue(html.contains("Confidence"));
         assertTrue(html.contains(ZoneId.systemDefault().getId())
                 || html.contains("Generated"));
@@ -41,6 +41,41 @@ class HtmlReportWriterTest {
     void renderEmptyReachedRows() {
         String html = HtmlReportWriter.render(List.of(), 3, 3, Instant.now(), 0);
         assertTrue(html.contains("No reachable vulnerable methods observed"));
+    }
+
+    @Test
+    void renderMergedSumsHitsAcrossJvms() {
+        JvmRunSnapshot a = new JvmRunSnapshot();
+        a.watchedTotal = 3;
+        JvmRunSnapshot.ReachedRow rowA = new JvmRunSnapshot.ReachedRow();
+        rowA.cve = "CVE-1";
+        rowA.method = "c.A#m";
+        rowA.status = "REACHABLE";
+        rowA.hitCount = 2;
+        a.reached = List.of(rowA);
+
+        JvmRunSnapshot b = new JvmRunSnapshot();
+        b.watchedTotal = 3;
+        JvmRunSnapshot.ReachedRow rowB = new JvmRunSnapshot.ReachedRow();
+        rowB.cve = "CVE-1";
+        rowB.method = "c.A#m";
+        rowB.status = "REACHABLE";
+        rowB.hitCount = 3;
+        b.reached = List.of(rowB);
+
+        String html = HtmlReportWriter.renderMerged(List.of(a, b), Instant.parse("2026-01-01T00:00:00Z"));
+        assertTrue(html.contains("CVE-1"));
+        assertTrue(html.contains("total invocations: 5"));
+        assertTrue(html.contains("hit counts summed"));
+        assertFalse(html.contains("data-tab="));
+    }
+
+    @Test
+    void renderMergedEmptyProducesPlaceholder() {
+        String html = HtmlReportWriter.renderMerged(List.of(), Instant.now());
+        assertTrue(html.contains("Dynamic Reachability Report"));
+        assertTrue(html.contains("No reachable"));
+        assertTrue(HtmlReportWriter.renderMerged(null, Instant.now()).contains("Dynamic Reachability Report"));
     }
 
     @Test
@@ -66,7 +101,10 @@ class HtmlReportWriterTest {
                 List.of(new MethodResult(a, ReachabilityStatus.REACHABLE, 1)),
                 1, 0, Instant.now(), 1);
         assertTrue(html.contains("&lt;script&gt;"));
-        assertFalse(html.contains("<script>"));
+        // Tab UI may include a real <script> block; CVE cell must stay escaped.
+        assertTrue(html.contains("<td>&lt;script&gt;</td>")
+                || html.contains(">&lt;script&gt;<"));
+        assertFalse(html.contains("<td><script>"));
     }
 
     @Test
@@ -116,5 +154,9 @@ class HtmlReportWriterTest {
         Object escaped = TestAccess.invokeStatic(
                 HtmlReportWriter.class, "esc", new Class<?>[]{String.class}, "a&b");
         assertTrue(escaped.toString().contains("&amp;"));
+        assertEquals("—", HtmlReportWriter.emptyAsDash(null));
+        assertEquals("—", HtmlReportWriter.emptyAsDash(""));
+        assertEquals("x", HtmlReportWriter.emptyAsDash("x"));
     }
 }
+

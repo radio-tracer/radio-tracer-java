@@ -27,9 +27,12 @@ import java.util.Locale;
  * </ol>
  *
  * <pre>
- * java -javaagent:agent.jar=methods=methods.json,report=report.html \
+ * java -javaagent:agent.jar=methods=methods.json,report=report.html,label=my-module \
  *      -cp app.jar:deps/* com.example.Main
  * </pre>
+ * Multi-module: each JVM writes {@code report.html.d/&lt;label&gt;-&lt;pid&gt;.json} and merges
+ * a flat HTML report (hit counts summed for the same CVE+method). Label defaults to Maven
+ * {@code basedir} / {@code user.dir} leaf name.
  */
 public final class ReachabilityAgent {
 
@@ -48,7 +51,7 @@ public final class ReachabilityAgent {
             AgentConfig config = AgentConfig.parse(agentArgs);
             Watchlist watchlist = Watchlist.load(config.methodsPath());
             InstrumentedMethodDispatcher.registerAll(watchlist.methods());
-            HitReporter.configure(config.reportPath(), watchlist.methods());
+            HitReporter.configure(config.reportPath(), watchlist.methods(), config.label());
 
             Banner.print(System.err);
             System.err.println("[radio-tracer] agent starting...");
@@ -59,6 +62,11 @@ public final class ReachabilityAgent {
                 System.err.println("[radio-tracer] report=" + config.reportPath().toAbsolutePath());
             } else {
                 System.err.println("[radio-tracer] report=none (console table only; no HTML file)");
+            }
+            if (config.label() != null && !config.label().isBlank()) {
+                System.err.println("[radio-tracer] runLabel=" + config.label());
+            } else {
+                System.err.println("[radio-tracer] runLabel=(auto from basedir/user.dir/pid)");
             }
             if (watchlist.size() == 0) {
                 System.err.println("[radio-tracer] watchlist is empty — agent idle (no instrumentation)");
@@ -174,8 +182,12 @@ public final class ReachabilityAgent {
         }
     }
 
-    /** Parses agent {@code -javaagent} argument strings. */
-    public record AgentConfig(Path methodsPath, Path reportPath, boolean verbose) {
+    /**
+     * Parses agent {@code -javaagent} argument strings.
+     *
+     * @param label optional module/JVM label ({@code label=} / {@code runId=} / {@code module=})
+     */
+    public record AgentConfig(Path methodsPath, Path reportPath, boolean verbose, String label) {
 
         public static AgentConfig parse(String agentArgs) {
             if (agentArgs == null || agentArgs.isBlank()) {
@@ -187,6 +199,7 @@ public final class ReachabilityAgent {
             Path methods = null;
             Path report = null;
             boolean verbose = false;
+            String label = null;
 
             if (!agentArgs.contains("=") && !agentArgs.contains(",")) {
                 methods = Path.of(agentArgs.trim());
@@ -209,6 +222,7 @@ public final class ReachabilityAgent {
                         case "methods", "watchlist", "file" -> methods = Path.of(value);
                         case "report", "out", "output" -> report = Path.of(value);
                         case "verbose", "v" -> verbose = Boolean.parseBoolean(value) || "1".equals(value);
+                        case "label", "runid", "module" -> label = value;
                         default -> System.err.println("[radio-tracer] unknown agent arg: " + key);
                     }
                 }
@@ -220,7 +234,7 @@ public final class ReachabilityAgent {
             if (!Files.isRegularFile(methods)) {
                 throw new IllegalArgumentException("Methods file not found: " + methods.toAbsolutePath());
             }
-            return new AgentConfig(methods, report, verbose);
+            return new AgentConfig(methods, report, verbose, label);
         }
     }
 }
