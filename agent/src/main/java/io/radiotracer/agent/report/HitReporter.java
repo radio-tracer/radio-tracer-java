@@ -33,18 +33,29 @@ public final class HitReporter {
     private static volatile Path reportPath;
     private static volatile List<Watchlist.VulnerableMethod> watchlist = List.of();
     private static volatile String runLabel = "";
+    private static volatile SlackNotifier slack = new SlackNotifier(null);
 
     private HitReporter() {}
 
     public static void configure(Path report, List<Watchlist.VulnerableMethod> methods) {
-        configure(report, methods, null);
+        configure(report, methods, null, null);
     }
 
     public static void configure(Path report, List<Watchlist.VulnerableMethod> methods, String label) {
+        configure(report, methods, label, null);
+    }
+
+    public static void configure(
+            Path report,
+            List<Watchlist.VulnerableMethod> methods,
+            String label,
+            String slackWebhook
+    ) {
         out = System.err;
         reportPath = report;
         watchlist = methods == null ? List.of() : List.copyOf(methods);
         runLabel = RunLabel.resolve(label);
+        slack = new SlackNotifier(slackWebhook);
     }
 
     public static void onMethodEnter(
@@ -92,6 +103,16 @@ public final class HitReporter {
 
             printCallerStack(out, Thread.currentThread().getStackTrace());
             out.flush();
+
+            // Instant Slack alert on first hit (does not block app correctness if Slack fails).
+            slack.notifyFirstReachable(
+                    cve,
+                    severity,
+                    formatCvss(cvssScore),
+                    packageCoord,
+                    key,
+                    RunLabel.display(runLabel),
+                    thread);
         } catch (Throwable t) {
             System.err.println("[radio-tracer] reporter error: " + t);
         }
@@ -181,51 +202,50 @@ public final class HitReporter {
             out.flush();
 
             Path path = reportPath;
-            if (path == null) {
-                return;
-            }
+            if (path != null) {
+                Path htmlPath = ensureHtmlPath(path);
+                Path fragmentsDir = fragmentsDirFor(htmlPath);
+                Path lockPath = fragmentsDir.resolve(".merge.lock");
+                Instant now = Instant.now();
+                JvmRunSnapshot mine = JvmRunSnapshot.fromResults(label, pid, results, total, now);
 
-            Path htmlPath = ensureHtmlPath(path);
-            Path fragmentsDir = fragmentsDirFor(htmlPath);
-            Path lockPath = fragmentsDir.resolve(".merge.lock");
-            Instant now = Instant.now();
-            JvmRunSnapshot mine = JvmRunSnapshot.fromResults(label, pid, results, total, now);
-
-            // Always persist this JVM's fragment (including 0 hits) under the lock, then merge.
-            Files.createDirectories(fragmentsDir);
-            try (FileChannel channel = FileChannel.open(
-                    lockPath,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE);
-                 FileLock lock = channel.lock()) {
-
-                Path fragmentPath = fragmentsDir.resolve(
-                        RunLabel.sanitize(label) + "-" + pid + ".json");
-                mine.write(fragmentPath);
-                out.println("[radio-tracer] fragment written " + fragmentPath.toAbsolutePath()
-                        + " (label=" + label + ", hits=" + total + ")");
-
-                List<JvmRunSnapshot> all = JvmRunSnapshot.loadAll(fragmentsDir);
-                String html = HtmlReportWriter.renderMerged(all, now);
-                Path parent = htmlPath.getParent();
-                if (parent != null) {
-                    Files.createDirectories(parent);
-                }
-                Files.writeString(
-                        htmlPath,
-                        html,
-                        StandardCharsets.UTF_8,
+                Files.createDirectories(fragmentsDir);
+                try (FileChannel channel = FileChannel.open(
+                        lockPath,
                         StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
                         StandardOpenOption.WRITE);
-                var mergedRows = JvmRunSnapshot.mergeReached(all);
-                long mergedHits = mergedRows.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
-                out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
-                        + " (jvms=" + all.size()
-                        + ", reachable_rows=" + mergedRows.size()
-                        + ", total_hits=" + mergedHits + ")");
-                out.flush();
+                     FileLock lock = channel.lock()) {
+
+                    Path fragmentPath = fragmentsDir.resolve(
+                            RunLabel.sanitize(label) + "-" + pid + ".json");
+                    mine.write(fragmentPath);
+                    out.println("[radio-tracer] fragment written " + fragmentPath.toAbsolutePath()
+                            + " (label=" + label + ", hits=" + total + ")");
+
+                    List<JvmRunSnapshot> all = JvmRunSnapshot.loadAll(fragmentsDir);
+                    String html = HtmlReportWriter.renderMerged(all, now);
+                    Path parent = htmlPath.getParent();
+                    if (parent != null) {
+                        Files.createDirectories(parent);
+                    }
+                    Files.writeString(
+                            htmlPath,
+                            html,
+                            StandardCharsets.UTF_8,
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE);
+                    var mergedRows = JvmRunSnapshot.mergeReached(all);
+                    long mergedHits = mergedRows.stream().mapToLong(JvmRunSnapshot.ReachedRow::hitCount).sum();
+                    out.println("[radio-tracer] HTML report written to " + htmlPath.toAbsolutePath()
+                            + " (jvms=" + all.size()
+                            + ", reachable_rows=" + mergedRows.size()
+                            + ", total_hits=" + mergedHits + ")");
+                    out.flush();
+                }
             }
+
+            slack.notifySummary(label, reached, total);
         } catch (Throwable t) {
             System.err.println("[radio-tracer] failed to write report: " + t);
             t.printStackTrace(System.err);

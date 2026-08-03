@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Multi-module / multi-JVM reports:** each process writes `report.html.d/<label>-<pid>.json` and merges a **flat** HTML report (same CVE+method → hit counts summed across JVMs)
+- **Slack Incoming Webhook** (`slack=` / env `RADIO_TRACER_SLACK_WEBHOOK`): notify on first `[REACHABLE]` and end-of-run summary
 
 ## [0.1.0] — 2026-08-03
 

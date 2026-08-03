@@ -89,6 +89,23 @@ class ReachabilityAgentTest {
     }
 
     @Test
+    void premainWithSlackWebhookEnabled(@TempDir Path dir) throws Exception {
+        Path methods = dir.resolve("m.json");
+        Files.writeString(methods, """
+                {"methods":[{"className":"java.lang.String","methodName":"length","cve":"C","package":"j"}]}
+                """);
+        Instrumentation inst = ByteBuddyAgent.install();
+        assertDoesNotThrow(() ->
+                ReachabilityAgent.premain(
+                        "methods=" + methods
+                                + ",slack=https://hooks.slack.com/services/T/B/XXX",
+                        inst));
+        // blank slack= should log slack=off (not throw)
+        assertDoesNotThrow(() ->
+                ReachabilityAgent.premain("methods=" + methods + ",slack=", inst));
+    }
+
+    @Test
     void startWithoutReportPath(@TempDir Path dir) throws Exception {
         Path methods = dir.resolve("m.json");
         Files.writeString(methods, """

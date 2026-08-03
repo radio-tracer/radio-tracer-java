@@ -160,7 +160,18 @@ java -javaagent:… -cp … com.example.app.DemoApp --cli
 | `methods=` | Watchlist JSON (**required**) |
 | `report=` | HTML path (optional; written on JVM exit). Multi-JVM: fragments in `report.html.d/`, **flat-merged** HTML |
 | `label=` / `runId=` / `module=` | JVM id for fragments (optional; else Maven `basedir` / `user.dir` / pid) |
+| `slack=` / `webhook=` | Slack Incoming Webhook URL — notify on **first REACHABLE** + end-of-run summary (optional) |
 | `verbose=true` | Log which classes get instrumented |
+
+**Slack:** create an Incoming Webhook in your workspace, then pass it to the agent (or set env `RADIO_TRACER_SLACK_WEBHOOK`):
+
+```bash
+export SLACK_WH="https://hooks.slack.com/services/…/…/…"
+java -javaagent:agent.jar=methods=examples/methods.json,report=/tmp/rt.html,slack=$SLACK_WH \
+  -cp "demo-app/target/demo-app-0.1.0.jar:demo-app/target/deps/*" \
+  com.example.app.DemoApp
+# open http://localhost:8080 → Generate report → Slack + terminal [REACHABLE]
+```
 
 **Demo UI:** default `DemoApp` serves a small Acme Finance console. **Generate report** calls `OrderService.importOrder` → watched `DeserUtil#deserialize` (critical). Watch the terminal for `[REACHABLE]`.
 

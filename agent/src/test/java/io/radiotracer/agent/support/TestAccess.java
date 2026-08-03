@@ -78,6 +78,7 @@ public final class TestAccess {
         setStaticField(hr, "reportPath", null);
         setStaticField(hr, "watchlist", java.util.List.of());
         setStaticField(hr, "runLabel", "");
+        setStaticField(hr, "slack", new io.radiotracer.agent.report.SlackNotifier(null));
         setStaticField(hr, "out", System.err);
     }
 
