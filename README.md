@@ -146,9 +146,9 @@ Does **not** replace SCA, prove exploitability, or invent CVE→method maps by i
 mvn -q test package
 
 # Browser UI (video demos): open http://localhost:8080 and click "Generate report"
-java -javaagent:agent/target/radio-tracer-agent-0.1.0.jar=\
+java -javaagent:agent/target/radio-tracer-agent-0.2.0.jar=\
 methods=examples/methods.json,report=/tmp/radio-tracer-report.html \
-  -cp "demo-app/target/demo-app-0.1.0.jar:demo-app/target/deps/*" \
+  -cp "demo-app/target/demo-app-0.2.0.jar:demo-app/target/deps/*" \
   com.example.app.DemoApp
 
 # Headless (CI): same paths, exit after hits
@@ -168,7 +168,7 @@ java -javaagent:… -cp … com.example.app.DemoApp --cli
 ```bash
 export SLACK_WH="https://hooks.slack.com/services/…/…/…"
 java -javaagent:agent.jar=methods=examples/methods.json,report=/tmp/rt.html,slack=$SLACK_WH \
-  -cp "demo-app/target/demo-app-0.1.0.jar:demo-app/target/deps/*" \
+  -cp "demo-app/target/demo-app-0.2.0.jar:demo-app/target/deps/*" \
   com.example.app.DemoApp
 # open http://localhost:8080 → Generate report → Slack + terminal [REACHABLE]
 ```
